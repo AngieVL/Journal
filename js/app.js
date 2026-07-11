@@ -1,6 +1,17 @@
 // ===== App shell: navigation, modal, settings =====
 loadDB();
 
+// ---- theme & accent ----
+const ACCENTS = ['#5bc8c0', '#e08bb8', '#a99bc6', '#f28b82', '#8fd0a8', '#f5c85c'];
+function applyTheme() {
+  const theme = DB.settings.theme || 'light';
+  document.documentElement.dataset.theme = theme;
+  if (DB.settings.accent) document.documentElement.style.setProperty('--teal', DB.settings.accent);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = theme === 'dark' ? '#211d19' : '#faf6ef';
+}
+applyTheme();
+
 const UI = {
   tab: 'today',
   week: weekStartISO(todayISO()),
@@ -60,6 +71,14 @@ function openSettings() {
   html += '<div class="set-row"><span>' + t('set.lang') + '</span><div class="seg">' +
     '<button id="lang-es" class="' + (DB.settings.lang === 'es' ? 'on' : '') + '">Español</button>' +
     '<button id="lang-en" class="' + (DB.settings.lang === 'en' ? 'on' : '') + '">English</button></div></div>';
+  const theme = DB.settings.theme || 'light';
+  html += '<div class="set-row"><span>' + t('set.theme') + '</span><div class="seg">' +
+    '<button id="th-light" class="' + (theme === 'light' ? 'on' : '') + '">☀️ ' + t('theme.light') + '</button>' +
+    '<button id="th-dark" class="' + (theme === 'dark' ? 'on' : '') + '">🌙 ' + t('theme.dark') + '</button></div></div>';
+  const accent = DB.settings.accent || ACCENTS[0];
+  html += '<div class="set-row"><span>' + t('set.accent') + '</span><div style="display:flex;gap:7px">' +
+    ACCENTS.map(c => '<button class="acc-swatch" data-accent="' + c + '" style="width:26px;height:26px;border-radius:50%;background:' + c +
+      ';border:2px solid ' + (c === accent ? 'var(--ink)' : 'transparent') + ';cursor:pointer"></button>').join('') + '</div></div>';
   html += '<label class="fld">' + t('set.habits') + '</label>';
   DB.habits.forEach(h => {
     html += '<div class="set-row"><span><span class="dot" style="display:inline-block;width:13px;height:13px;border-radius:4px;background:' + h.color + ';margin-right:8px"></span>' + esc(h.name) + '</span>' +
@@ -77,6 +96,11 @@ function openSettings() {
   md.querySelector('#md-x').onclick = closeModal;
   md.querySelector('#lang-es').onclick = () => { DB.settings.lang = 'es'; saveDB(); render(); openSettings(); };
   md.querySelector('#lang-en').onclick = () => { DB.settings.lang = 'en'; saveDB(); render(); openSettings(); };
+  md.querySelector('#th-light').onclick = () => { DB.settings.theme = 'light'; saveDB(); applyTheme(); openSettings(); };
+  md.querySelector('#th-dark').onclick = () => { DB.settings.theme = 'dark'; saveDB(); applyTheme(); openSettings(); };
+  md.querySelectorAll('.acc-swatch').forEach(b => b.onclick = () => {
+    DB.settings.accent = b.dataset.accent; saveDB(); applyTheme(); render(); openSettings();
+  });
   md.querySelectorAll('[data-habdel]').forEach(b => b.onclick = () => {
     DB.habits = DB.habits.filter(h => h.id !== b.dataset.habdel);
     saveDB(); render(); openSettings();
@@ -94,7 +118,7 @@ function openSettings() {
     const f = e.target.files[0];
     if (!f) return;
     if (!confirm(t('set.importconfirm'))) return;
-    importData(f, ok => { closeModal(); render(); toast(ok ? t('common.saved') : '❌'); });
+    importData(f, ok => { applyTheme(); closeModal(); render(); toast(ok ? t('common.saved') : '❌'); });
   };
 }
 

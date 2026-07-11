@@ -12,7 +12,7 @@ function renderGoals() {
   const startKey = 'start-' + y, endKey = 'end-' + y;
   html += '<div class="ritual-banner" id="ritual-start"><div class="rb-title">🌅 ' + t('goals.ritual.start') + (DB.ritual[startKey] ? ' ✓' : '') + '</div>' +
     (DB.ritual[startKey] && DB.ritual[startKey].word ? '<div class="rb-sub">✨ "' + esc(DB.ritual[startKey].word) + '"</div>' : '') + '</div>';
-  html += '<div class="ritual-banner" id="ritual-end" style="background:linear-gradient(135deg,#fdeee2,#f7e6f0)"><div class="rb-title">🌙 ' + t('goals.ritual.end') + (DB.ritual[endKey] ? ' ✓' : '') + '</div></div>';
+  html += '<div class="ritual-banner rb-end" id="ritual-end"><div class="rb-title">🌙 ' + t('goals.ritual.end') + (DB.ritual[endKey] ? ' ✓' : '') + '</div></div>';
 
   // review card
   html += '<div class="card"><div class="section-title"><span class="st-left">🔄 ' + t('goals.review') + '</span></div>' +

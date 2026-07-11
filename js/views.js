@@ -330,7 +330,7 @@ function openEventModal(dateIso) {
 }
 
 // ---------- TRACKERS ----------
-const TRACKER_LIST = ['mood', 'productivity', 'sleep', 'health', 'period', 'gym', 'habits', 'body'];
+const TRACKER_LIST = ['resumen', 'mood', 'productivity', 'sleep', 'health', 'period', 'gym', 'habits', 'body'];
 
 function renderTrackers() {
   const trk = UI.trk;
@@ -341,6 +341,7 @@ function renderTrackers() {
   });
   html += '</div>';
 
+  if (trk === 'resumen') return html + renderOverview();
   if (trk === 'habits') return html + renderHabitTracker();
   if (trk === 'body') return html + renderBodyTracker();
 
@@ -356,6 +357,45 @@ function renderTrackers() {
       : '<span class="muted">' + t('trk.nopredict') + '</span>') + '</div>';
   }
   html += '<div class="card">' + renderStats(trk, UI.trkYear) + '</div>';
+  return html;
+}
+
+// month overview: one table, one row per day, one column per tracker
+const OV_TRACKERS = ['mood', 'productivity', 'sleep', 'gym', 'health', 'period'];
+
+function renderOverview() {
+  const { y, m } = UI.habitMonth;
+  const months = t('months');
+  const dim = daysInMonth(y, m);
+  const today = todayISO();
+  let html = '<div class="wk-nav"><button class="btn secondary small" id="hm-prev">‹</button><b>' + months[m] + ' ' + y + '</b>' +
+    '<button class="btn secondary small" id="hm-next">›</button></div>';
+  html += '<div class="card"><div class="pixel-wrap"><table class="pixel"><tr><th></th>';
+  OV_TRACKERS.forEach(k => html += '<th style="font-size:9px">' + t('trk.' + k).replace(' tracker', '') + '</th>');
+  html += '<th style="font-size:9px">' + t('today.habits') + '</th></tr>';
+  for (let d = 1; d <= dim; d++) {
+    const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    html += '<tr><td class="rowlbl">' + d + '</td>';
+    OV_TRACKERS.forEach(k => {
+      const def = TRACKER_DEFS[k];
+      const v = DB.trackers[k][iso];
+      let style = '', inner = '';
+      if (v) {
+        if (def.multi) {
+          inner = '<div class="multi-halves">' + v.map(x => '<span style="background:' + trkColor(k, x) + '"></span>').join('') + '</div>';
+        } else {
+          style = 'background:' + trkColor(k, v);
+        }
+      }
+      html += '<td class="cell' + (iso === today ? ' today' : '') + '" data-ovtrk="' + k + '" data-date="' + iso + '" style="' + style + '">' + inner + '</td>';
+    });
+    // habits column: fraction of habits done that day
+    const done = (DB.habitLog[iso] || []).length, total = DB.habits.length;
+    const pct = total ? done / total : 0;
+    const habStyle = done ? 'background:rgba(91,200,192,' + (0.25 + pct * 0.75).toFixed(2) + ')' : '';
+    html += '<td class="cell" style="' + habStyle + ';font-size:9px;text-align:center;color:var(--ink)">' + (done ? done + '/' + total : '') + '</td></tr>';
+  }
+  html += '</table></div><div class="muted center mt8">' + t('trk.pickday') + '</div></div>';
   return html;
 }
 
@@ -433,6 +473,10 @@ function bindTrackers(root) {
   if (hp) hp.onclick = () => { UI.habitMonth.m--; if (UI.habitMonth.m < 0) { UI.habitMonth.m = 11; UI.habitMonth.y--; } render(); };
   if (hn) hn.onclick = () => { UI.habitMonth.m++; if (UI.habitMonth.m > 11) { UI.habitMonth.m = 0; UI.habitMonth.y++; } render(); };
 
+  if (UI.trk === 'resumen') {
+    root.querySelectorAll('td.cell[data-ovtrk]').forEach(td => td.onclick = () => openPixelPicker(td.dataset.ovtrk, td.dataset.date));
+    return;
+  }
   if (UI.trk === 'habits') {
     root.querySelectorAll('td.cell[data-hab]').forEach(td => td.onclick = () => {
       const iso = td.dataset.date, id = td.dataset.hab;
