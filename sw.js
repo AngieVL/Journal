@@ -1,15 +1,15 @@
 ﻿// Service worker: full offline cache
-const CACHE = 'agenda-v3';
+const CACHE = 'agenda-v4';
 const ASSETS = [
   './',
   './index.html',
-  './app.css?v=3',
-  './js/i18n.js?v=3',
-  './js/store.js?v=3',
-  './js/trackers.js?v=3',
-  './js/views.js?v=3',
-  './js/goals.js?v=3',
-  './js/app.js?v=3',
+  './app.css?v=4',
+  './js/i18n.js?v=4',
+  './js/store.js?v=4',
+  './js/trackers.js?v=4',
+  './js/views.js?v=4',
+  './js/goals.js?v=4',
+  './js/app.js?v=4',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'

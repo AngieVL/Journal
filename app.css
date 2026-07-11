@@ -124,6 +124,12 @@ label.fld { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 .task .tk-title { flex: 1; }
 .task.done .tk-title { text-decoration: line-through; color: var(--ink-soft); background: var(--hl-done); border-radius: 4px; padding: 0 4px; }
 .task .tk-del, .task .tk-move { background: none; border: none; cursor: pointer; font-size: 15px; opacity: .45; padding: 4px; }
+.task .tk-title { cursor: pointer; }
+.tk-time {
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft); white-space: nowrap;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px;
+}
+input.time-inp, input[type=time] { width: auto; min-width: 96px; }
 
 /* Habit chips */
 .habit-row { display: flex; flex-wrap: wrap; gap: 8px; }

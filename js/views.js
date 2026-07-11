@@ -11,8 +11,9 @@ function renderToday() {
 
   // tasks
   html += '<div class="card"><div class="section-title"><span class="st-left">✍️ ' + t('today.tasks') + '</span></div>';
-  html += tasks.length ? tasks.map(tk => taskRowHTML(iso, tk)).join('') : '<div class="empty">' + t('today.notask') + '</div>';
+  html += tasks.length ? sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('') : '<div class="empty">' + t('today.notask') + '</div>';
   html += '<div class="add-row"><input type="text" id="new-task" placeholder="' + t('today.addtask') + '">' +
+          '<input type="time" id="new-task-time" class="time-inp">' +
           '<button class="btn" id="btn-add-task">+</button></div></div>';
 
   // habits
@@ -71,9 +72,14 @@ function todayTrackersTable() {
 function taskRowHTML(iso, tk) {
   return '<div class="task' + (tk.done ? ' done' : '') + '" data-task="' + tk.id + '" data-date="' + iso + '">' +
     '<button class="tk-check">' + (tk.done ? '✓' : '') + '</button>' +
+    (tk.time ? '<span class="tk-time">🕐 ' + tk.time + '</span>' : '') +
     '<span class="tk-title">' + esc(tk.title) + '</span>' +
-    '<button class="tk-move" title="→">↪️</button>' +
+    '<button class="tk-move" title="mover">📅</button>' +
     '<button class="tk-del">✕</button></div>';
+}
+
+function sortTasks(list) {
+  return list.slice().sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
 }
 
 function bindToday(root) {
@@ -96,7 +102,10 @@ function bindToday(root) {
   const inp = root.querySelector('#new-task');
   const add = () => {
     if (!inp.value.trim()) return;
-    (DB.tasks[iso] || (DB.tasks[iso] = [])).push({ id: uid(), title: inp.value.trim(), done: false });
+    const tk = { id: uid(), title: inp.value.trim(), done: false };
+    const tm = root.querySelector('#new-task-time').value;
+    if (tm) tk.time = tm;
+    (DB.tasks[iso] || (DB.tasks[iso] = [])).push(tk);
     saveDB(); render();
   };
   root.querySelector('#btn-add-task').onclick = add;
@@ -111,14 +120,43 @@ function bindTaskEvents(root) {
     if (!tk) return;
     row.querySelector('.tk-check').onclick = () => { tk.done = !tk.done; saveDB(); render(); };
     row.querySelector('.tk-del').onclick = () => { DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
-    const mv = row.querySelector('.tk-move');
-    if (mv) mv.onclick = () => { // move to next day
-      DB.tasks[iso] = list.filter(x => x.id !== id);
-      const next = addDays(iso, 1);
-      (DB.tasks[next] || (DB.tasks[next] = [])).push(tk);
-      saveDB(); render(); toast('→ ' + fmtDate(next));
-    };
+    row.querySelector('.tk-title').onclick = () => openTaskModal(iso, id);
+    row.querySelector('.tk-move').onclick = () => openTaskModal(iso, id);
   });
+}
+
+// edit task: title, time, move to another day
+function openTaskModal(iso, id) {
+  const list = DB.tasks[iso] || [];
+  const tk = list.find(x => x.id === id);
+  if (!tk) return;
+  let html = '<div class="modal-title">✍️ ' + t('task.edit') + '<button class="icon-btn" id="md-x">✕</button></div>' +
+    '<label class="fld">' + t('task.title') + '</label><input type="text" id="tk-title" value="' + esc(tk.title) + '">' +
+    '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
+    '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
+    '<div class="modal-actions"><button class="btn danger" id="tk-delete">🗑</button>' +
+    '<button class="btn" id="md-save" style="flex:3">' + t('common.save') + '</button></div>';
+  openModal(html);
+  const md = document.getElementById('modal-card');
+  md.querySelector('#md-x').onclick = closeModal;
+  md.querySelector('#tk-delete').onclick = () => {
+    DB.tasks[iso] = list.filter(x => x.id !== id);
+    saveDB(); closeModal(); render();
+  };
+  md.querySelector('#md-save').onclick = () => {
+    const title = md.querySelector('#tk-title').value.trim();
+    if (!title) return;
+    tk.title = title;
+    const tm = md.querySelector('#tk-time').value;
+    if (tm) tk.time = tm; else delete tk.time;
+    const nd = md.querySelector('#tk-date').value;
+    if (nd && nd !== iso) {
+      DB.tasks[iso] = list.filter(x => x.id !== id);
+      (DB.tasks[nd] || (DB.tasks[nd] = [])).push(tk);
+      toast('📅 → ' + fmtDate(nd));
+    }
+    saveDB(); closeModal(); render();
+  };
 }
 
 // ---------- WEEK ----------
@@ -139,7 +177,7 @@ function renderWeek() {
     const tasks = DB.tasks[iso] || [];
     html += '<div class="card wk-day' + (iso === today ? ' today-col' : '') + '">' +
       '<div class="wd-head"><span>' + days[d.getDay()] + ' ' + d.getDate() + (iso === today ? ' · ' + t('common.today') : '') + '</span></div>';
-    html += tasks.map(tk => taskRowHTML(iso, tk)).join('');
+    html += sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('');
     html += '<div class="add-row"><input type="text" class="wk-new" data-date="' + iso + '" placeholder="' + t('week.addtask') + '">' +
       '<button class="btn small wk-add" data-date="' + iso + '">+</button></div></div>';
   }
