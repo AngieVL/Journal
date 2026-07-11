@@ -26,27 +26,46 @@ function renderToday() {
   });
   html += '</div></div>';
 
-  // quick trackers
-  html += '<div class="card"><div class="section-title"><span class="st-left">🎨 ' + t('today.quick') + '</span></div>';
-  ['mood', 'productivity', 'sleep', 'gym', 'health', 'period'].forEach(trk => {
-    html += quickTrackerHTML(trk, iso);
-  });
+  // tracker fill-in table (rows = trackers, columns = days, like her paper journal)
+  html += '<div class="card"><div class="section-title"><span class="st-left">🎨 ' + t('today.quick') + '</span></div>' +
+    todayTrackersTable();
   const pred = periodPrediction();
   if (pred) html += '<div class="muted mt8">🩸 ' + t('trk.predict') + ': <b>' + fmtDate(pred.next) + '</b> (' + t('trk.predictdays') + ' ' + pred.cycle + 'd)</div>';
   html += '</div>';
   return html;
 }
 
-function quickTrackerHTML(trk, iso) {
-  const def = TRACKER_DEFS[trk];
-  const v = DB.trackers[trk][iso];
-  let html = '<div class="qt-group"><div class="qt-label"><span>' + t('trk.' + trk).replace(' tracker', '') + '</span></div><div class="qt-opts">';
-  def.options.forEach(o => {
-    const on = def.multi ? (v || []).includes(o.id) : v === o.id;
-    html += '<button class="qt-opt' + (on ? ' on' : '') + '" data-trk="' + trk + '" data-opt="' + o.id + '" data-date="' + iso + '">' +
-      '<span class="dot" style="background:' + o.color + '"></span>' + trkLabel(trk, o.id) + '</button>';
+function todayTrackersTable() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const dim = daysInMonth(y, m);
+  const today = todayISO();
+  let html = '<div class="pixel-wrap" id="today-trk-wrap"><table class="pixel"><tr><th style="text-align:left">·</th>';
+  for (let d = 1; d <= dim; d++) {
+    const isToday = d === now.getDate();
+    html += '<th style="' + (isToday ? 'color:var(--ink);font-size:11px;text-decoration:underline' : '') + '">' + d + '</th>';
+  }
+  html += '</tr>';
+  OV_TRACKERS.forEach(k => {
+    const def = TRACKER_DEFS[k];
+    html += '<tr><td class="rowlbl" style="white-space:nowrap;font-size:11px">' + t('trk.' + k).replace(' tracker', '') + '</td>';
+    for (let d = 1; d <= dim; d++) {
+      const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      const v = DB.trackers[k][iso];
+      let style = '', inner = '';
+      if (v) {
+        if (def.multi) {
+          inner = '<div class="multi-halves">' + v.map(x => '<span style="background:' + trkColor(k, x) + '"></span>').join('') + '</div>';
+        } else {
+          style = 'background:' + trkColor(k, v);
+        }
+      }
+      html += '<td class="cell' + (iso === today ? ' today' : '') + '" data-ovtrk="' + k + '" data-date="' + iso + '" style="' + style + '">' + inner + '</td>';
+    }
+    html += '</tr>';
   });
-  return html + '</div></div>';
+  html += '</table></div><div class="muted center mt8">' + t('trk.pickday') + '</div>';
+  return html;
 }
 
 function taskRowHTML(iso, tk) {
@@ -67,10 +86,13 @@ function bindToday(root) {
     if (i >= 0) log.splice(i, 1); else log.push(id);
     saveDB(); render();
   });
-  root.querySelectorAll('.qt-opt').forEach(btn => btn.onclick = () => {
-    setTrackerValue(btn.dataset.trk, btn.dataset.date, btn.dataset.opt);
-    render();
-  });
+  root.querySelectorAll('td.cell[data-ovtrk]').forEach(td => td.onclick = () => openPixelPicker(td.dataset.ovtrk, td.dataset.date));
+  // auto-scroll the tracker table to today's column
+  const wrap = root.querySelector('#today-trk-wrap');
+  if (wrap) {
+    const cell = wrap.querySelector('td.cell.today');
+    if (cell) wrap.scrollLeft = Math.max(0, cell.offsetLeft - wrap.clientWidth / 2);
+  }
   const inp = root.querySelector('#new-task');
   const add = () => {
     if (!inp.value.trim()) return;
