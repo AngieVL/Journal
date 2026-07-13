@@ -13,8 +13,9 @@ function renderToday() {
   html += '<div class="card"><div class="section-title"><span class="st-left">✍️ ' + t('today.tasks') + '</span></div>';
   html += tasks.length ? sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('') : '<div class="empty">' + t('today.notask') + '</div>';
   html += '<div class="add-row"><input type="text" id="new-task" placeholder="' + t('today.addtask') + '">' +
-          '<input type="time" id="new-task-time" class="time-inp">' +
-          '<button class="btn" id="btn-add-task">+</button></div></div>';
+          '<button class="btn" id="btn-add-task">+</button></div>' +
+          '<div class="add-row">' + catSelectHTML('cat-sel', UI.lastCat) +
+          '<input type="time" id="new-task-time" class="time-inp"></div></div>';
 
   // habits
   html += '<div class="card"><div class="section-title"><span class="st-left">🔥 ' + t('today.habits') + '</span></div><div class="habit-row">';
@@ -70,12 +71,23 @@ function todayTrackersTable() {
 }
 
 function taskRowHTML(iso, tk) {
-  return '<div class="task' + (tk.done ? ' done' : '') + '" data-task="' + tk.id + '" data-date="' + iso + '">' +
+  const cat = catById(tk.cat);
+  return '<div class="task' + (tk.done ? ' done' : '') + '" data-task="' + tk.id + '" data-date="' + iso + '"' +
+    (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
     '<button class="tk-check">' + (tk.done ? '✓' : '') + '</button>' +
     (tk.time ? '<span class="tk-time">🕐 ' + tk.time + '</span>' : '') +
-    '<span class="tk-title">' + esc(tk.title) + '</span>' +
+    '<span class="tk-title">' + esc(tk.title) +
+    (cat ? ' <span class="tk-cat" style="background:' + cat.color + '33;color:' + darker(cat.color) + '">' + esc(cat.name) + '</span>' : '') +
+    '</span>' +
     '<button class="tk-move" title="mover">📅</button>' +
     '<button class="tk-del">✕</button></div>';
+}
+
+function catSelectHTML(cls, selected) {
+  return '<select class="' + cls + '"><option value="">◻ ' + t('cat.none') + '</option>' +
+    (DB.categories || []).map(c =>
+      '<option value="' + c.id + '"' + (selected === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') +
+    '</select>';
 }
 
 function sortTasks(list) {
@@ -105,6 +117,8 @@ function bindToday(root) {
     const tk = { id: uid(), title: inp.value.trim(), done: false };
     const tm = root.querySelector('#new-task-time').value;
     if (tm) tk.time = tm;
+    const cat = root.querySelector('.cat-sel').value;
+    if (cat) { tk.cat = cat; UI.lastCat = cat; }
     (DB.tasks[iso] || (DB.tasks[iso] = [])).push(tk);
     saveDB(); render();
   };
@@ -132,6 +146,7 @@ function openTaskModal(iso, id) {
   if (!tk) return;
   let html = '<div class="modal-title">✍️ ' + t('task.edit') + '<button class="icon-btn" id="md-x">✕</button></div>' +
     '<label class="fld">' + t('task.title') + '</label><input type="text" id="tk-title" value="' + esc(tk.title) + '">' +
+    '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('cat-sel-edit', tk.cat) +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
     '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
     '<div class="modal-actions"><button class="btn danger" id="tk-delete">🗑</button>' +
@@ -147,6 +162,8 @@ function openTaskModal(iso, id) {
     const title = md.querySelector('#tk-title').value.trim();
     if (!title) return;
     tk.title = title;
+    const cat = md.querySelector('.cat-sel-edit').value;
+    if (cat) tk.cat = cat; else delete tk.cat;
     const tm = md.querySelector('#tk-time').value;
     if (tm) tk.time = tm; else delete tk.time;
     const nd = md.querySelector('#tk-date').value;

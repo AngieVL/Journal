@@ -79,6 +79,14 @@ function openSettings() {
   html += '<div class="set-row"><span>' + t('set.accent') + '</span><div style="display:flex;gap:7px">' +
     ACCENTS.map(c => '<button class="acc-swatch" data-accent="' + c + '" style="width:26px;height:26px;border-radius:50%;background:' + c +
       ';border:2px solid ' + (c === accent ? 'var(--ink)' : 'transparent') + ';cursor:pointer"></button>').join('') + '</div></div>';
+  html += '<label class="fld">🎨 ' + t('set.cats') + '</label><div class="muted" style="font-size:12px">' + t('set.catshint') + '</div>';
+  (DB.categories || []).forEach(c => {
+    html += '<div class="set-row" style="gap:8px">' +
+      '<input type="color" value="' + c.color + '" data-catcolor="' + c.id + '" style="width:38px;height:34px;min-width:38px;padding:2px;border-radius:8px;border:1px solid var(--line);background:none;cursor:pointer">' +
+      '<input type="text" value="' + esc(c.name) + '" data-catname="' + c.id + '" style="flex:1">' +
+      '<button class="tk-del" data-catdel="' + c.id + '">✕</button></div>';
+  });
+  html += '<div class="add-row"><input type="text" id="new-cat" placeholder="' + t('set.addcat') + '"><button class="btn" id="btn-add-cat">+</button></div>';
   html += '<label class="fld">' + t('set.habits') + '</label>';
   DB.habits.forEach(h => {
     html += '<div class="set-row"><span><span class="dot" style="display:inline-block;width:13px;height:13px;border-radius:4px;background:' + h.color + ';margin-right:8px"></span>' + esc(h.name) + '</span>' +
@@ -89,7 +97,11 @@ function openSettings() {
     '<div style="display:flex;gap:8px"><button class="btn secondary" id="btn-export" style="flex:1">⬇️ ' + t('set.export') + '</button>' +
     '<button class="btn secondary" id="btn-import" style="flex:1">⬆️ ' + t('set.import') + '</button></div>' +
     '<input type="file" id="import-file" accept=".json" style="display:none">';
-  html += '<div class="muted mt16">☁️ ' + t('set.sync') + ': ' + t('set.synchint') + '</div>';
+  html += '<label class="fld mt16">☁️ ' + t('set.sync') + '</label>' +
+    '<div class="set-row"><span id="sync-state" class="muted">' + (typeof syncStateText === 'function' ? syncStateText() : '') + '</span>' +
+    '<div style="display:flex;gap:8px">' +
+    '<button class="btn small secondary" id="btn-sync-now">🔄 ' + t('sync.now') + '</button>' +
+    '<button class="btn small secondary" id="btn-restore">⬇️ ' + t('sync.restore') + '</button></div></div>';
   html += '<div class="muted mt8 center">Mi Agenda v1 · ' + (DB.settings.name || '') + ' 💜</div>';
   openModal(html);
   const md = document.getElementById('modal-card');
@@ -112,6 +124,29 @@ function openSettings() {
     DB.habits.push({ id: uid(), name: inp.value.trim(), color: habitColors[DB.habits.length % habitColors.length] });
     saveDB(); render(); openSettings();
   };
+  md.querySelectorAll('[data-catcolor]').forEach(inp => inp.onchange = () => {
+    const c = catById(inp.dataset.catcolor);
+    if (c) { c.color = inp.value; saveDB(); render(); }
+  });
+  md.querySelectorAll('[data-catname]').forEach(inp => inp.onchange = () => {
+    const c = catById(inp.dataset.catname);
+    if (c && inp.value.trim()) { c.name = inp.value.trim(); saveDB(); render(); }
+  });
+  md.querySelectorAll('[data-catdel]').forEach(b => b.onclick = () => {
+    DB.categories = DB.categories.filter(c => c.id !== b.dataset.catdel);
+    saveDB(); render(); openSettings();
+  });
+  const catColors = ['#f5c85c', '#5bc8c0', '#8fd0a8', '#e08bb8', '#a99bc6', '#f4a98c', '#f28b82'];
+  md.querySelector('#btn-add-cat').onclick = () => {
+    const inp = md.querySelector('#new-cat');
+    if (!inp.value.trim()) return;
+    (DB.categories || (DB.categories = [])).push({ id: uid(), name: inp.value.trim(), color: catColors[DB.categories.length % catColors.length] });
+    saveDB(); render(); openSettings();
+  };
+  const syncNow = md.querySelector('#btn-sync-now');
+  if (syncNow) syncNow.onclick = async () => { await doSync(); const el = document.getElementById('sync-state'); if (el) el.textContent = syncStateText(); };
+  const restore = md.querySelector('#btn-restore');
+  if (restore) restore.onclick = restoreFromCloud;
   md.querySelector('#btn-export').onclick = exportData;
   md.querySelector('#btn-import').onclick = () => md.querySelector('#import-file').click();
   md.querySelector('#import-file').onchange = e => {
@@ -123,3 +158,6 @@ function openSettings() {
 }
 
 render();
+
+// push a backup shortly after opening (if backend configured and online)
+setTimeout(() => { if (typeof doSync === 'function') doSync(); }, 3000);

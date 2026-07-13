@@ -3,6 +3,14 @@ const STORE_KEY = 'agenda_db_v1';
 
 const DEFAULT_DB = {
   settings: { lang: 'es', name: 'Angie' },
+  categories: [
+    { id: 'work', name: 'Trabajo', color: '#f5c85c' },
+    { id: 'personal', name: 'Personal', color: '#5bc8c0' },
+    { id: 'social', name: 'Social', color: '#8fd0a8' },
+    { id: 'family', name: 'Familia', color: '#e08bb8' },
+    { id: 'freelance', name: 'Freelance', color: '#a99bc6' },
+    { id: 'home', name: 'Hogar', color: '#f4a98c' }
+  ],
   habits: [
     { id: 'h1', name: 'Water', color: '#5bc8c0' },
     { id: 'h2', name: 'Read', color: '#e08bb8' },
@@ -185,9 +193,13 @@ function seedGoals2026() {
 
 function saveDB() {
   localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+  if (typeof scheduleSync === 'function') scheduleSync();
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function catById(id) { return (DB.categories || []).find(c => c.id === id) || null; }
+function catColor(id) { const c = catById(id); return c ? c.color : 'transparent'; }
 
 // ---- date helpers ----
 function todayISO() { return dateISO(new Date()); }
