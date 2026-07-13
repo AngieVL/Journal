@@ -149,6 +149,7 @@ function openGoalDetail(goalId) {
   };
   md.querySelector('#gd-del').onclick = () => {
     if (!confirm(t('goals.deleteconfirm'))) return;
+    tomb('goal:' + g.title.trim().toLowerCase());
     DB.goals = DB.goals.filter(x => x.id !== g.id);
     saveDB(); closeModal(); render();
   };
@@ -177,6 +178,8 @@ function openGoalDetail(goalId) {
     };
   });
   md.querySelectorAll('[data-msdel]').forEach(b => b.onclick = () => {
+    const dm = g.milestones.find(x => x.id === b.dataset.msdel);
+    if (dm) tomb('ms:' + g.title.trim().toLowerCase() + ':' + dm.title.trim().toLowerCase());
     g.milestones = g.milestones.filter(x => x.id !== b.dataset.msdel);
     saveDB(); openGoalDetail(g.id);
   });
@@ -188,6 +191,8 @@ function openGoalDetail(goalId) {
   md.querySelectorAll('[data-stdel]').forEach(b => b.onclick = () => {
     const [mid, sid] = b.dataset.stdel.split(':');
     const m = g.milestones.find(x => x.id === mid);
+    const ds = m.steps.find(x => x.id === sid);
+    if (ds) tomb('st:' + g.title.trim().toLowerCase() + ':' + ds.title.trim().toLowerCase());
     m.steps = m.steps.filter(x => x.id !== sid);
     saveDB(); openGoalDetail(g.id);
   });

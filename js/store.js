@@ -27,7 +27,9 @@ const DEFAULT_DB = {
   trackers: { mood:{}, productivity:{}, sleep:{}, health:{}, period:{}, gym:{} },
   body: [],            // {id, date, chest, armR, armL, waist, hips, thighR, thighL, calfR, calfL, weight}
   reviews: {},         // 'M-2026-07' | 'Q-2026-3' : {feel,win,improve,next,goals:{goalId:status}}
-  ritual: {}           // 'start-2026': {word,vision,letter} / 'end-2026': {rating,best,learned,release,thanks}
+  ritual: {},          // 'start-2026': {word,vision,letter} / 'end-2026': {rating,best,learned,release,thanks}
+  celebrated: {},      // logros ya celebrados por WhatsApp
+  tombstones: []       // claves de cosas borradas (para que la fusión multi-dispositivo no las resucite)
 };
 
 let DB = null;

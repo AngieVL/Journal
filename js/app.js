@@ -217,6 +217,8 @@ function openSettings() {
     DB.settings.accent = b.dataset.accent; saveDB(); applyTheme(); render(); openSettings();
   });
   md.querySelectorAll('[data-habdel]').forEach(b => b.onclick = () => {
+    const dh = DB.habits.find(h => h.id === b.dataset.habdel);
+    if (dh) tomb('hab:' + dh.name.trim().toLowerCase());
     DB.habits = DB.habits.filter(h => h.id !== b.dataset.habdel);
     saveDB(); render(); openSettings();
   });
@@ -236,6 +238,8 @@ function openSettings() {
     if (c && inp.value.trim()) { c.name = inp.value.trim(); saveDB(); render(); }
   });
   md.querySelectorAll('[data-catdel]').forEach(b => b.onclick = () => {
+    const dc = catById(b.dataset.catdel);
+    if (dc) tomb('cat:' + dc.name.trim().toLowerCase());
     DB.categories = DB.categories.filter(c => c.id !== b.dataset.catdel);
     saveDB(); render(); openSettings();
   });
@@ -247,7 +251,12 @@ function openSettings() {
     saveDB(); render(); openSettings();
   };
   const syncNow = md.querySelector('#btn-sync-now');
-  if (syncNow) syncNow.onclick = async () => { await doSync(); const el = document.getElementById('sync-state'); if (el) el.textContent = syncStateText(); };
+  if (syncNow) syncNow.onclick = async () => {
+    syncNow.textContent = '⏳';
+    const ok = await fullSync();
+    render(); openSettings();
+    toast(ok ? t('common.saved') : '❌');
+  };
   const restore = md.querySelector('#btn-restore');
   if (restore) restore.onclick = restoreFromCloud;
   md.querySelector('#btn-export').onclick = exportData;
@@ -262,5 +271,9 @@ function openSettings() {
 
 render();
 
-// push a backup shortly after opening (if backend configured and online)
-setTimeout(() => { if (typeof doSync === 'function') doSync(); }, 3000);
+// full sync cycle shortly after opening: pull cloud → merge → push
+setTimeout(async () => {
+  if (typeof fullSync !== 'function') return;
+  const ok = await fullSync();
+  if (ok) render(); // reflejar lo que llegó de otros dispositivos
+}, 2000);

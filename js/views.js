@@ -133,7 +133,7 @@ function bindTaskEvents(root) {
     const tk = list.find(x => x.id === id);
     if (!tk) return;
     row.querySelector('.tk-check').onclick = () => { tk.done = !tk.done; saveDB(); render(); };
-    row.querySelector('.tk-del').onclick = () => { DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
+    row.querySelector('.tk-del').onclick = () => { tomb('task:' + iso + ':' + id); DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
     row.querySelector('.tk-title').onclick = () => openTaskModal(iso, id);
     row.querySelector('.tk-move').onclick = () => openTaskModal(iso, id);
   });
@@ -155,6 +155,7 @@ function openTaskModal(iso, id) {
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = closeModal;
   md.querySelector('#tk-delete').onclick = () => {
+    tomb('task:' + iso + ':' + id);
     DB.tasks[iso] = list.filter(x => x.id !== id);
     saveDB(); closeModal(); render();
   };
@@ -168,6 +169,7 @@ function openTaskModal(iso, id) {
     if (tm) tk.time = tm; else delete tk.time;
     const nd = md.querySelector('#tk-date').value;
     if (nd && nd !== iso) {
+      tomb('task:' + iso + ':' + id);
       DB.tasks[iso] = list.filter(x => x.id !== id);
       (DB.tasks[nd] || (DB.tasks[nd] = [])).push(tk);
       toast('📅 → ' + fmtDate(nd));
@@ -216,6 +218,7 @@ function bindWeek(root) {
       const list = DB.tasks[iso] || [];
       const undone = list.filter(x => !x.done);
       if (!undone.length) continue;
+      undone.forEach(x => tomb('task:' + iso + ':' + x.id));
       DB.tasks[iso] = list.filter(x => x.done);
       (DB.tasks[today] || (DB.tasks[today] = [])).push(...undone);
       moved += undone.length;
@@ -356,11 +359,13 @@ function bindMonth(root) {
   if (evAdd) evAdd.onclick = () => openEventModal(null);
   root.querySelectorAll('[data-ev]').forEach(btn => btn.onclick = e => {
     e.stopPropagation();
+    tomb('ev:' + btn.dataset.ev);
     DB.events = DB.events.filter(x => x.id !== btn.dataset.ev);
     saveDB(); render();
   });
   root.querySelectorAll('[data-hl]').forEach(btn => btn.onclick = () => {
     const mk = UI.month.y + '-' + String(UI.month.m + 1).padStart(2, '0');
+    tomb('hl:' + mk + ':' + btn.dataset.hl);
     DB.highlights[mk] = (DB.highlights[mk] || []).filter(x => x.id !== btn.dataset.hl);
     saveDB(); render();
   });
@@ -395,6 +400,7 @@ function openEventModal(dateIso) {
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = md.querySelector('#md-cancel').onclick = closeModal;
   md.querySelectorAll('[data-mdev]').forEach(b => b.onclick = () => {
+    tomb('ev:' + b.dataset.mdev);
     DB.events = DB.events.filter(x => x.id !== b.dataset.mdev);
     saveDB(); closeModal(); render();
   });
@@ -640,6 +646,7 @@ function bindTrackers(root) {
     const add = root.querySelector('#body-add');
     if (add) add.onclick = openBodyModal;
     root.querySelectorAll('[data-body]').forEach(b => b.onclick = () => {
+      tomb('body:' + b.dataset.body);
       DB.body = DB.body.filter(x => x.id !== b.dataset.body);
       saveDB(); render();
     });
