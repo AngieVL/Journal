@@ -101,7 +101,7 @@ function bindToday(root) {
     const id = btn.dataset.habit;
     const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);
     const i = log.indexOf(id);
-    if (i >= 0) log.splice(i, 1); else log.push(id);
+    if (i >= 0) log.splice(i, 1); else { log.push(id); checkStreakCelebration(id); }
     saveDB(); render();
   });
   root.querySelectorAll('td.cell[data-ovtrk]').forEach(td => td.onclick = () => openPixelPicker(td.dataset.ovtrk, td.dataset.date));
@@ -407,7 +407,77 @@ function openEventModal(dateIso) {
 }
 
 // ---------- TRACKERS ----------
-const TRACKER_LIST = ['resumen', 'mood', 'productivity', 'sleep', 'health', 'period', 'gym', 'habits', 'body'];
+const TRACKER_LIST = ['resumen', 'insights', 'mood', 'productivity', 'sleep', 'health', 'period', 'gym', 'habits', 'body'];
+
+// ---------- INSIGHTS: correlaciones con sus datos reales ----------
+const INS_MP = { fantastic: 5, great: 4, okay: 3, down: 2, sad: 1 };
+const INS_PP = { high: 3, mid: 2, low: 1 }; // rest no cuenta
+const INS_SH = { s9: 9.5, s78: 7.5, s65: 5.5, s43: 3.5, s3: 2.5, s0: 0 };
+const insAvg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : null;
+
+function renderInsights() {
+  const mood = DB.trackers.mood, prod = DB.trackers.productivity, sleep = DB.trackers.sleep, gym = DB.trackers.gym;
+  const cards = [];
+
+  // 1. sueño → productividad (mismo día)
+  const lowS = [], okS = [];
+  for (const d in sleep) {
+    const p = INS_PP[prod[d]];
+    if (p === undefined || INS_SH[sleep[d]] === undefined) continue;
+    (INS_SH[sleep[d]] < 6.5 ? lowS : okS).push(p);
+  }
+  if (lowS.length >= 5 && okS.length >= 5) {
+    cards.push(['😴 ' + t('ins.sleep'), t('ins.sleep.t').replace('{a}', insAvg(lowS).toFixed(1)).replace('{b}', insAvg(okS).toFixed(1))]);
+  }
+
+  // 2. gym → ánimo
+  const gm = [], ngm = [];
+  for (const d in mood) {
+    const m = INS_MP[mood[d]];
+    if (!m) continue;
+    (gym[d] && gym[d] !== 'rest' ? gm : ngm).push(m);
+  }
+  if (gm.length >= 5 && ngm.length >= 5) {
+    cards.push(['🏋️ ' + t('ins.gym'), t('ins.gym.t').replace('{a}', insAvg(gm).toFixed(1)).replace('{b}', insAvg(ngm).toFixed(1))]);
+  }
+
+  // 3. energía por día de semana (productividad promedio)
+  const wd = [[], [], [], [], [], [], []];
+  for (const d in prod) {
+    const p = INS_PP[prod[d]];
+    if (p !== undefined) wd[fromISO(d).getDay()].push(p);
+  }
+  const conDatos = wd.map((a, i) => a.length >= 3 ? { i, v: insAvg(a) } : null).filter(Boolean);
+  if (conDatos.length >= 3) {
+    const dias = t('days.long');
+    const orden = conDatos.slice().sort((a, b) => b.v - a.v);
+    const top = orden.slice(0, 2).map(x => dias[x.i]).join(' + ');
+    const low = dias[orden[orden.length - 1].i];
+    cards.push(['🔋 ' + t('ins.energy'), t('ins.energy.t').replace('{top}', top).replace('{low}', low)]);
+  }
+
+  // 4. hábitos → productividad
+  const hi = [], lo = [];
+  for (const d in prod) {
+    const p = INS_PP[prod[d]];
+    if (p === undefined) continue;
+    ((DB.habitLog[d] || []).length >= 3 ? hi : lo).push(p);
+  }
+  if (hi.length >= 5 && lo.length >= 5) {
+    cards.push(['🔁 ' + t('ins.habits'), t('ins.habits.t').replace('{a}', insAvg(hi).toFixed(1)).replace('{b}', insAvg(lo).toFixed(1))]);
+  }
+
+  let html = '';
+  if (!cards.length) {
+    html = '<div class="card"><div class="empty">' + t('ins.empty') + '</div></div>';
+  } else {
+    cards.forEach(([title, body]) => {
+      html += '<div class="card"><div class="section-title"><span class="st-left">' + title + '</span></div><div>' + body + '</div></div>';
+    });
+    html += '<div class="muted center mt8">' + t('ins.more') + '</div>';
+  }
+  return html;
+}
 
 function renderTrackers() {
   const trk = UI.trk;
@@ -419,6 +489,7 @@ function renderTrackers() {
   html += '</div>';
 
   if (trk === 'resumen') return html + renderOverview();
+  if (trk === 'insights') return html + renderInsights();
   if (trk === 'habits') return html + renderHabitTracker();
   if (trk === 'body') return html + renderBodyTracker();
 
@@ -554,12 +625,13 @@ function bindTrackers(root) {
     root.querySelectorAll('td.cell[data-ovtrk]').forEach(td => td.onclick = () => openPixelPicker(td.dataset.ovtrk, td.dataset.date));
     return;
   }
+  if (UI.trk === 'insights') return;
   if (UI.trk === 'habits') {
     root.querySelectorAll('td.cell[data-hab]').forEach(td => td.onclick = () => {
       const iso = td.dataset.date, id = td.dataset.hab;
       const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);
       const i = log.indexOf(id);
-      if (i >= 0) log.splice(i, 1); else log.push(id);
+      if (i >= 0) log.splice(i, 1); else { log.push(id); checkStreakCelebration(id); }
       saveDB(); render();
     });
     return;

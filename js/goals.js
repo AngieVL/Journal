@@ -143,7 +143,10 @@ function openGoalDetail(goalId) {
   openModal(html);
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = () => { closeModal(); render(); };
-  md.querySelector('#gd-done').onclick = () => { g.done = !g.done; saveDB(); closeModal(); render(); if (g.done) toast('🎉✨'); };
+  md.querySelector('#gd-done').onclick = () => {
+    g.done = !g.done; saveDB(); closeModal(); render();
+    if (g.done) { toast('🎉✨'); celebrate('goal', g.id, g.title); }
+  };
   md.querySelector('#gd-del').onclick = () => {
     if (!confirm(t('goals.deleteconfirm'))) return;
     DB.goals = DB.goals.filter(x => x.id !== g.id);
@@ -261,7 +264,7 @@ function openReview(kind) { // 'M' or 'Q'
     b.classList.add('on');
     if (st === 'done') {
       const g = DB.goals.find(x => x.id === gid);
-      if (g) { g.done = true; saveDB(); }
+      if (g && !g.done) { g.done = true; saveDB(); celebrate('goal', g.id, g.title); }
     }
   });
   md.querySelector('#md-save').onclick = () => {

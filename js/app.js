@@ -73,12 +73,42 @@ function openPlanner() {
   let html = '<div class="modal-title">✨ ' + t('plan.title') + '<button class="icon-btn" id="md-x">✕</button></div>' +
     '<div class="muted" style="font-size:13px">' + t('plan.hint') + '</div>' +
     '<textarea id="plan-text" style="min-height:150px;margin-top:10px" placeholder="' + t('plan.ph') + '"></textarea>' +
-    '<div class="modal-actions"><button class="btn" id="plan-go">🪄 ' + t('plan.go') + '</button></div>' +
+    '<div class="modal-actions"><button class="btn secondary" id="plan-mic" style="flex:0 0 62px">🎤</button>' +
+    '<button class="btn" id="plan-go">🪄 ' + t('plan.go') + '</button></div>' +
     '<div id="plan-result"></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
-  md.querySelector('#md-x').onclick = closeModal;
-  md.querySelector('#plan-go').onclick = runPlanner;
+  md.querySelector('#md-x').onclick = () => { stopMic(); closeModal(); };
+  md.querySelector('#plan-go').onclick = () => { stopMic(); runPlanner(); };
+  md.querySelector('#plan-mic').onclick = toggleMic;
+}
+
+// dictado por voz (Web Speech API, igual que en Finanzas)
+let planRec = null;
+function stopMic() {
+  if (planRec) { try { planRec.stop(); } catch (e) {} planRec = null; }
+  const b = document.getElementById('plan-mic');
+  if (b) b.textContent = '🎤';
+}
+function toggleMic() {
+  if (planRec) { stopMic(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast(t('plan.novoice')); return; }
+  planRec = new SR();
+  planRec.lang = DB.settings.lang === 'en' ? 'en-US' : 'es-CO';
+  planRec.continuous = true;
+  planRec.interimResults = false;
+  planRec.onresult = e => {
+    const ta = document.getElementById('plan-text');
+    if (!ta) return;
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) ta.value = (ta.value ? ta.value.trim() + ' ' : '') + e.results[i][0].transcript.trim();
+    }
+  };
+  planRec.onend = () => { if (planRec) stopMic(); };
+  planRec.onerror = () => stopMic();
+  planRec.start();
+  document.getElementById('plan-mic').textContent = '🔴';
 }
 
 async function runPlanner() {

@@ -40,6 +40,30 @@ function syncStateText() {
   return t('sync.last') + ' ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString().slice(0, 5);
 }
 
+// celebraciones instantáneas por WhatsApp (con dedupe local)
+const STREAK_MILESTONES = [7, 30, 50, 100, 200, 365];
+
+function celebrate(kind, key, title, extra) {
+  DB.celebrated = DB.celebrated || {};
+  const k = kind + ':' + key;
+  if (DB.celebrated[k]) return;
+  DB.celebrated[k] = true;
+  saveDB();
+  const url = backendUrl();
+  if (!url || !navigator.onLine) return;
+  fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'celebrate', kind, title, extra: extra || '' })
+  }).catch(() => {});
+}
+
+function checkStreakCelebration(habitId) {
+  const h = DB.habits.find(x => x.id === habitId);
+  if (!h) return;
+  const st = habitStreak(habitId);
+  if (STREAK_MILESTONES.includes(st)) celebrate('streak', habitId + ':' + st, h.name, st);
+}
+
 async function restoreFromCloud() {
   const url = backendUrl();
   if (!url) return;
