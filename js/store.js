@@ -40,6 +40,19 @@ function loadDB() {
     DB.settings.seeded2026 = true;
     saveDB();
   }
+  // one-time upgrade: mid-year monthly plan (replaces milestones of untouched seeded goals)
+  if (!DB.settings.plan2026) {
+    const fresh = seedGoals2026();
+    DB.goals.forEach(g => {
+      if (g.year !== 2026 || g.done) return;
+      const touched = (g.milestones || []).some(m => m.done || (m.steps || []).some(s => s.done));
+      if (touched) return; // don't wipe her progress
+      const nu = fresh.find(f => f.title === g.title);
+      if (nu) g.milestones = nu.milestones;
+    });
+    DB.settings.plan2026 = true;
+    saveDB();
+  }
   window.DB = DB;
 }
 
@@ -53,76 +66,120 @@ function seedGoals2026() {
   return [
     // personal
     goal('personal', 'Read 4 books', { target: 4, milestones: [
-      ms(1, 'Book 1'), ms(2, 'Book 2'), ms(3, 'Book 3', ['Pick the book', 'Read 20 min before bed']), ms(4, 'Book 4')] }),
+      ms(3, 'Jul-Aug: Book 1', ['Pick the book', 'Read 15 min before bed']),
+      ms(3, 'Sep: Book 2'), ms(4, 'Oct-Nov: Book 3'), ms(4, 'Dec: Book 4')] }),
     goal('personal', 'Finish my bedroom and office remodel', { milestones: [
-      ms(3, 'Finish office design', ['Choose desk layout', 'Order missing pieces']),
-      ms(4, 'Bedroom + office fully set up', ['Decorate walls', 'Final cleanup & photos'])] }),
+      ms(3, 'Jul: Final office design', ['Choose desk layout']),
+      ms(3, 'Aug: Buy/order missing pieces'),
+      ms(3, 'Sep: Office fully set up'),
+      ms(4, 'Oct: Bedroom finishing touches'),
+      ms(4, 'Nov: Decorate + final photos 📸')] }),
     goal('personal', 'Create an outfit combinations stock', { done: true }),
     goal('personal', 'Good method for cleaning my rooms', { milestones: [
-      ms(3, 'Define cleaning routine', ['List zones & frequency', 'Make weekly checklist']),
-      ms(4, 'Routine running for a full month')] }),
+      ms(3, 'Jul: Define routine + weekly checklist', ['List zones & frequency']),
+      ms(3, 'Aug: Run it a full month')] }),
     goal('personal', 'Fluent english speaking (language exchange)', { milestones: [
-      ms(3, 'Weekly language exchange sessions', ['Find exchange partner', 'Schedule fixed day']),
-      ms(4, '30-min full conversations in english')] }),
+      ms(3, 'Jul: Find exchange partner + fixed day'),
+      ms(3, 'Aug-Sep: Weekly exchange sessions'),
+      ms(4, 'Oct-Nov: 30-min full conversations'),
+      ms(4, 'Dec: Fluency self-test 🎓')] }),
     goal('personal', 'Have 6 dates with me', { target: 6, milestones: [
-      ms(1, 'Dates 1-2'), ms(2, 'Date 3'), ms(3, 'Dates 4-5', ['Plan solo plan I love']), ms(4, 'Date 6')] }),
+      ms(3, 'Jul: Date 1'), ms(3, 'Aug: Date 2'), ms(3, 'Sep: Date 3'),
+      ms(4, 'Oct: Date 4'), ms(4, 'Nov: Date 5'), ms(4, 'Dec: Date 6')] }),
     goal('personal', 'Make an international trip', { milestones: [
-      ms(3, 'Choose destination & budget', ['Shortlist 3 destinations', 'Check flight prices']),
-      ms(4, 'Book & travel', ['Book flights', 'Plan itinerary'])] }),
+      ms(3, 'Jul: Pick destination + budget', ['Shortlist 3 destinations', 'Check flight prices']),
+      ms(3, 'Aug: Book flights'),
+      ms(4, 'Oct: Itinerary + documents ready'),
+      ms(4, 'Nov-Dec: The trip! ✈️')] }),
     goal('personal', 'Make 2 national trips', { target: 2, done: true, count: 2 }),
     goal('personal', 'Have my diving certificate', { milestones: [
-      ms(1, 'Buy diving accessories'),
-      ms(3, 'Take the diving course', ['Complete pool sessions', 'Open water dives']),
-      ms(3, 'Get the certification')] }),
+      ms(3, 'Jul: Finish course sessions'),
+      ms(3, 'Aug: Open water dives + certification 🤿')] }),
     // health
-    goal('health', 'Go to the dermatologist', { milestones: [ms(3, 'Book appointment'), ms(3, 'Attend appointment')] }),
-    goal('health', 'Go to the gynecologist', { milestones: [ms(3, 'Book appointment'), ms(3, 'Attend appointment')] }),
-    goal('health', 'Go to the optometrist', { milestones: [ms(3, 'Book appointment'), ms(3, 'Attend appointment')] }),
+    goal('health', 'Go to the dermatologist', { milestones: [
+      ms(3, 'Jul: Book appointment'), ms(3, 'Aug: Attend appointment')] }),
+    goal('health', 'Go to the gynecologist', { milestones: [
+      ms(3, 'Aug: Book appointment'), ms(3, 'Sep: Attend appointment')] }),
+    goal('health', 'Go to the optometrist', { milestones: [
+      ms(3, 'Sep: Book appointment'), ms(4, 'Oct: Attend appointment')] }),
     goal('health', 'Finish my brackets treatment', { done: true }),
     goal('health', 'Have my annual medical exams', { milestones: [
-      ms(3, 'Schedule the exams'), ms(4, 'Get & review results')] }),
+      ms(4, 'Oct: Schedule the exams'), ms(4, 'Nov: Exams + review results')] }),
     goal('health', 'Have a functional skincare routine', { milestones: [
-      ms(3, 'Define AM/PM routine', ['Pick products that work', 'Stick it on the mirror']),
-      ms(4, 'Consistent for 2 months')] }),
-    goal('health', 'Go to the gym 144 times', { target: 144, tracker: 'gym' }),
+      ms(3, 'Jul: Define AM/PM routine', ['Pick products that work', 'Stick it on the mirror']),
+      ms(3, 'Aug-Sep: 2 months consistent')] }),
+    goal('health', 'Go to the gym 144 times', { target: 144, tracker: 'gym', milestones: [
+      ms(3, 'Jul: Back on schedule (3-4x/week)'),
+      ms(3, 'Aug-Sep: Steady 4-5x/week'),
+      ms(4, 'Oct: Check count → keep or adjust target'),
+      ms(4, 'Nov-Dec: Hold the pace 💪')] }),
     goal('health', 'Drink 2 lt of water daily', { milestones: [
-      ms(3, 'Water bottle at the office every day'), ms(4, '30-day water streak')] }),
+      ms(3, 'Jul: Water bottle at the office every day'),
+      ms(3, 'Aug: 30-day water streak'),
+      ms(4, 'Oct-Dec: Maintain without thinking')] }),
     goal('health', 'Improve my diet (less sugar and dairy)', { milestones: [
-      ms(3, 'Cut sugary drinks on weekdays'), ms(4, 'Low-dairy meal plan')] }),
+      ms(3, 'Aug: No sugary drinks on weekdays'),
+      ms(3, 'Sep: Low-dairy meal plan'),
+      ms(4, 'Oct-Dec: Maintain 80/20')] }),
     goal('health', 'Improve my flexibility and posture on my back', { milestones: [
-      ms(3, 'Stretch routine 3x/week', ['Pick 10-min routine']), ms(4, 'Posture check-in & progress photo')] }),
+      ms(3, 'Sep: 10-min stretch routine 3x/week'),
+      ms(4, 'Oct-Nov: Keep it consistent'),
+      ms(4, 'Dec: Posture check + progress photo')] }),
     goal('health', 'Take supplements and vitamins', { milestones: [
-      ms(3, 'Buy supplements'), ms(4, 'Daily habit for a full month')] }),
+      ms(3, 'Jul: Buy supplements'),
+      ms(3, 'Aug: Full month daily'),
+      ms(4, 'Oct-Dec: Maintain')] }),
     // finance
     goal('finance', 'Have 7-8M salary', { done: true }),
     goal('finance', 'Incomes greater than 90M', { target: 90, milestones: [
-      ms(1, '~22M accumulated'), ms(2, '~45M accumulated'), ms(3, '~67M accumulated'), ms(4, '90M+ accumulated')] }),
+      ms(3, 'Jul: ~52M accumulated'), ms(3, 'Aug: ~60M'), ms(3, 'Sep: ~67M'),
+      ms(4, 'Oct: ~75M'), ms(4, 'Nov: ~82M'), ms(4, 'Dec: 90M+ 🎉')] }),
     goal('finance', 'Have my legal and tax finances in order', { milestones: [
-      ms(3, 'Gather documents', ['List pending papers', 'Session with abogada']), ms(4, 'Taxes filed & up to date')] }),
+      ms(3, 'Jul: Gather all documents', ['List pending papers']),
+      ms(3, 'Aug: Session with abogada'),
+      ms(3, 'Sep: Everything filed & up to date')] }),
     goal('finance', 'Have emergency savings in invest (6 months)', { milestones: [
-      ms(3, 'Define monthly saving amount'), ms(4, '3 months of expenses saved')] }),
+      ms(3, 'Aug: Define monthly auto-save amount'),
+      ms(3, 'Sep: 1 month of expenses saved'),
+      ms(4, 'Nov: 2 months saved'),
+      ms(4, 'Dec: 3 months saved (halfway!)')] }),
     goal('finance', 'Learn and improve my invests', { milestones: [
-      ms(3, 'Finish an investing course/book'), ms(4, 'Review & rebalance portfolio')] }),
+      ms(3, 'Sep: Finish an investing course/book'),
+      ms(4, 'Oct: Apply learnings to insights'),
+      ms(4, 'Nov: Review & rebalance portfolio')] }),
     goal('finance', 'Complete down payment for my house', { milestones: [
-      ms(3, 'Define total amount needed'), ms(4, 'Automatic saving plan running')] }),
+      ms(4, 'Oct: Define total amount + deadline'),
+      ms(4, 'Nov: Automatic saving plan running')] }),
     // work
     goal('work', 'Get a better job', { done: true }),
     goal('work', 'Publish content on my IG account', { milestones: [
-      ms(3, 'Define content line', ['Pick 3 content pillars']), ms(3, 'First 3 posts published'), ms(4, 'Posting monthly')] }),
+      ms(3, 'Jul: Define 3 content pillars'),
+      ms(3, 'Aug: First 3 posts published'),
+      ms(3, 'Sep: Monthly rhythm set'),
+      ms(4, 'Oct-Dec: 1+ post per month')] }),
     goal('work', 'Have original Adobe license', { done: true }),
     goal('work', 'Perform maintenance on my PC', { milestones: [
-      ms(3, 'Backup + deep clean'), ms(4, 'Hardware check')] }),
+      ms(3, 'Aug: Backup + deep clean'),
+      ms(3, 'Sep: Hardware check')] }),
     goal('work', 'Watch an animated movie per month', { target: 12, milestones: [
-      ms(1, '3 movies'), ms(2, '6 movies'), ms(3, '9 movies'), ms(4, '12 movies')] }),
+      ms(3, 'Jul: Movie 7'), ms(3, 'Aug: Movie 8'), ms(3, 'Sep: Movie 9'),
+      ms(4, 'Oct: Movie 10'), ms(4, 'Nov: Movie 11'), ms(4, 'Dec: Movie 12 🍿')] }),
     goal('work', 'Strategically showcase my work and leadership to my leads', { milestones: [
-      ms(3, 'Share wins in team meetings'), ms(4, 'Portfolio review with my lead')] }),
+      ms(3, 'Aug: Share wins in team meetings'),
+      ms(3, 'Sep: Visibility plan with work samples'),
+      ms(4, 'Nov: Portfolio review with my lead')] }),
     goal('work', 'Have a healthy relationship with my job', { milestones: [
-      ms(3, 'Define work boundaries', ['Set end-of-day time']), ms(4, 'One full no-overtime month')] }),
+      ms(3, 'Jul: Define end-of-day boundary'),
+      ms(3, 'Sep: One full no-overtime month'),
+      ms(4, 'Dec: Evaluate how it feels')] }),
     // social
     goal('social', 'Have a special monthly time with my parents', { target: 12, milestones: [
-      ms(1, '3 special moments'), ms(2, '6 special moments'), ms(3, '9 special moments'), ms(4, '12 special moments')] }),
+      ms(3, 'Jul: Moment 7'), ms(3, 'Aug: Moment 8'), ms(3, 'Sep: Moment 9'),
+      ms(4, 'Oct: Moment 10'), ms(4, 'Nov: Moment 11'), ms(4, 'Dec: Moment 12 💜')] }),
     goal('social', 'Build stronger relationships with my friends', { milestones: [
-      ms(3, 'One friend plan per month'), ms(4, 'End-of-year gathering')] })
+      ms(3, 'Jul-Sep: One friend plan per month'),
+      ms(4, 'Oct-Nov: Keep the monthly plan'),
+      ms(4, 'Dec: End-of-year gathering 🎄')] })
   ];
 }
 

@@ -126,10 +126,10 @@ function openGoalDetail(goalId) {
     html += '<div class="milestone"><div class="m-head">Q' + q + ' <span class="muted">(' + trimesterMonths(q) + ')</span></div>';
     ms.forEach(m => {
       html += '<div class="step' + (m.done ? ' done' : '') + '"><button class="tk-check' + '" data-ms="' + m.id + '" style="width:20px;height:20px;min-width:20px;border-radius:50%;border:2px solid var(--ink-soft);background:' + (m.done ? 'var(--teal)' : 'none') + ';color:#fff;cursor:pointer">' + (m.done ? '✓' : '') + '</button>' +
-        '<span class="s-title" style="flex:1;font-weight:600">' + esc(m.title) + '</span><button class="tk-del" data-msdel="' + m.id + '">✕</button></div>';
+        '<span class="s-title editable" data-edit="ms:' + m.id + '" style="flex:1;font-weight:600">' + esc(m.title) + '</span><button class="tk-del" data-msdel="' + m.id + '">✕</button></div>';
       (m.steps || []).forEach(s => {
         html += '<div class="step' + (s.done ? ' done' : '') + '" style="padding-left:34px"><button data-st="' + m.id + ':' + s.id + '" style="width:17px;height:17px;min-width:17px;border-radius:4px;border:1.5px solid var(--ink-soft);background:' + (s.done ? 'var(--green)' : 'none') + ';color:#fff;cursor:pointer;font-size:10px">' + (s.done ? '✓' : '') + '</button>' +
-          '<span class="s-title" style="flex:1">' + esc(s.title) + '</span><button class="tk-del" data-stdel="' + m.id + ':' + s.id + '">✕</button></div>';
+          '<span class="s-title editable" data-edit="st:' + m.id + ':' + s.id + '" style="flex:1">' + esc(s.title) + '</span><button class="tk-del" data-stdel="' + m.id + ':' + s.id + '">✕</button></div>';
       });
       html += '<div class="add-row"><input type="text" class="ms-step-new" data-ms="' + m.id + '" placeholder="' + t('goals.addstep') + '"><button class="btn small ms-step-add" data-ms="' + m.id + '">+</button></div>';
     });
@@ -187,6 +187,27 @@ function openGoalDetail(goalId) {
     const m = g.milestones.find(x => x.id === mid);
     m.steps = m.steps.filter(x => x.id !== sid);
     saveDB(); openGoalDetail(g.id);
+  });
+  // tap a milestone/step title to edit it in place
+  md.querySelectorAll('.editable[data-edit]').forEach(span => span.onclick = () => {
+    const parts = span.dataset.edit.split(':');
+    let target;
+    if (parts[0] === 'ms') target = g.milestones.find(x => x.id === parts[1]);
+    else { const m = g.milestones.find(x => x.id === parts[1]); target = m && (m.steps || []).find(x => x.id === parts[2]); }
+    if (!target) return;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.value = target.title;
+    inp.style.cssText = 'flex:1;padding:6px 8px;font-size:14px';
+    span.replaceWith(inp); inp.focus();
+    let saved = false;
+    const commit = () => {
+      if (saved) return; saved = true;
+      const v = inp.value.trim();
+      if (v) { target.title = v; saveDB(); }
+      openGoalDetail(g.id);
+    };
+    inp.onblur = commit;
+    inp.onkeydown = e => { if (e.key === 'Enter') commit(); };
   });
 }
 

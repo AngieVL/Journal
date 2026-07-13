@@ -28,7 +28,7 @@ function renderToday() {
   html += '</div></div>';
 
   // tracker fill-in table (rows = trackers, columns = days, like her paper journal)
-  html += '<div class="card"><div class="section-title"><span class="st-left">🎨 ' + t('today.quick') + '</span></div>' +
+  html += '<div class="card wide"><div class="section-title"><span class="st-left">🎨 ' + t('today.quick') + '</span></div>' +
     todayTrackersTable();
   const pred = periodPrediction();
   if (pred) html += '<div class="muted mt8">🩸 ' + t('trk.predict') + ': <b>' + fmtDate(pred.next) + '</b> (' + t('trk.predictdays') + ' ' + pred.cycle + 'd)</div>';
@@ -286,7 +286,7 @@ function renderYearOverview(y) {
   const months = t('months'), dshort = t('days.short');
   const today = todayISO();
   const headColors = ['#bfe8e5', '#bfe8e5', '#bfe8e5', '#fcd9c4', '#fcd9c4', '#fcd9c4', '#ecc7de', '#ecc7de', '#ecc7de', '#f8dfa0', '#f8dfa0', '#f8dfa0'];
-  let html = '<div class="card"><div class="mini-months">';
+  let html = '<div class="card wide"><div class="mini-months">';
   for (let m = 0; m < 12; m++) {
     const first = new Date(y, m, 1).getDay(), dim = daysInMonth(y, m);
     html += '<div class="mini-m"><div class="mm-name" style="background:' + headColors[m] + '">' + months[m].slice(0, 3) + '</div><table><tr>' +
@@ -407,7 +407,7 @@ function renderTrackers() {
 
   html += '<div class="wk-nav"><button class="btn secondary small" id="ty-prev">‹</button><b>' + UI.trkYear + '</b>' +
     '<button class="btn secondary small" id="ty-next">›</button></div>';
-  html += '<div class="card">' + renderLegend(trk) +
+  html += '<div class="card wide">' + renderLegend(trk) +
     '<div class="muted center">' + t('trk.pickday') + '</div>' +
     renderPixelGrid(trk, UI.trkYear) + '</div>';
   if (trk === 'period') {
@@ -430,7 +430,7 @@ function renderOverview() {
   const today = todayISO();
   let html = '<div class="wk-nav"><button class="btn secondary small" id="hm-prev">‹</button><b>' + months[m] + ' ' + y + '</b>' +
     '<button class="btn secondary small" id="hm-next">›</button></div>';
-  html += '<div class="card"><div class="pixel-wrap"><table class="pixel"><tr><th></th>';
+  html += '<div class="card wide"><div class="pixel-wrap"><table class="pixel"><tr><th></th>';
   OV_TRACKERS.forEach(k => html += '<th style="font-size:9px">' + t('trk.' + k).replace(' tracker', '') + '</th>');
   html += '<th style="font-size:9px">' + t('today.habits') + '</th></tr>';
   for (let d = 1; d <= dim; d++) {
@@ -465,7 +465,7 @@ function renderHabitTracker() {
   const dim = daysInMonth(y, m);
   let html = '<div class="wk-nav"><button class="btn secondary small" id="hm-prev">‹</button><b>' + months[m] + ' ' + y + '</b>' +
     '<button class="btn secondary small" id="hm-next">›</button></div>';
-  html += '<div class="card"><div class="pixel-wrap"><table class="pixel"><tr><th style="text-align:left">·</th>';
+  html += '<div class="card wide"><div class="pixel-wrap"><table class="pixel"><tr><th style="text-align:left">·</th>';
   for (let d = 1; d <= dim; d++) html += '<th>' + d + '</th>';
   html += '</tr>';
   DB.habits.forEach(h => {
@@ -492,7 +492,7 @@ const BODY_FIELDS = ['weight', 'chest', 'armR', 'armL', 'waist', 'hips', 'thighR
 
 function renderBodyTracker() {
   const rows = DB.body.slice().sort((a, b) => a.date < b.date ? -1 : 1);
-  let html = '<div class="card"><div class="section-title"><span class="st-left">📏 ' + t('trk.body') + '</span>' +
+  let html = '<div class="card wide"><div class="section-title"><span class="st-left">📏 ' + t('trk.body') + '</span>' +
     '<button class="btn small" id="body-add">+ ' + t('trk.addmeasure') + '</button></div>';
   if (rows.length) {
     html += '<div class="body-table-wrap"><table class="body-t"><tr><th></th>' +

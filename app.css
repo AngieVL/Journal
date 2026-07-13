@@ -293,6 +293,30 @@ svg.spark { width: 100%; height: 120px; }
 .ritual-banner .rb-title { font-weight: 700; letter-spacing: 1px; }
 .ritual-banner .rb-sub { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
 
+.editable { cursor: text; border-bottom: 1px dashed transparent; }
+.editable:hover { border-bottom-color: var(--ink-soft); }
+
+/* ===== Desktop / wide screens ===== */
+@media (min-width: 900px) {
+  #view {
+    max-width: 1080px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0 22px; align-items: start;
+    padding-bottom: 100px;
+  }
+  #view > .page-title, #view > .subtitle, #view > .wk-nav,
+  #view > .goal-cat-tabs, #view > .empty, #view > button.btn,
+  #view > .card.wide { grid-column: 1 / -1; }
+  #topbar { max-width: 1120px; margin: 0 auto; width: 100%; }
+  #topbar-title { font-size: 22px; }
+  #tabbar { justify-content: center; gap: 30px; }
+  #tabbar .tab { flex: 0 0 90px; }
+  table.pixel td.cell { width: 25px; height: 25px; min-width: 25px; }
+  .cal td { height: 72px; font-size: 13px; }
+  #modal-card { max-width: 640px; }
+  .mini-months { grid-template-columns: repeat(4, 1fr); }
+}
+
 .center { text-align: center; }
 .muted { color: var(--ink-soft); font-size: 13px; }
 .mt8 { margin-top: 8px; } .mt16 { margin-top: 16px; }
