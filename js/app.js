@@ -277,3 +277,14 @@ setTimeout(async () => {
   const ok = await fullSync();
   if (ok) render(); // reflejar lo que llegó de otros dispositivos
 }, 2000);
+
+// y cada vez que la app vuelve al frente (en Android la PWA se "resume",
+// no se reinicia — sin esto la sincronización nunca corría al reabrirla)
+let lastFgSync = 0;
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible') return;
+  if (Date.now() - lastFgSync < 45000) return; // máx una vez cada 45s
+  lastFgSync = Date.now();
+  const ok = await fullSync();
+  if (ok) render();
+});

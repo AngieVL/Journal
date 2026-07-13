@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=9">
+<link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
 <div id="app">
@@ -31,16 +31,28 @@
   </div>
   <div id="toast" class="hidden"></div>
 </div>
-<script src="js/i18n.js?v=9"></script>
-<script src="js/store.js?v=9"></script>
-<script src="js/trackers.js?v=9"></script>
-<script src="js/views.js?v=9"></script>
-<script src="js/goals.js?v=9"></script>
-<script src="js/sync.js?v=9"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/i18n.js?v=10"></script>
+<script src="js/store.js?v=10"></script>
+<script src="js/trackers.js?v=10"></script>
+<script src="js/views.js?v=10"></script>
+<script src="js/goals.js?v=10"></script>
+<script src="js/sync.js?v=10"></script>
+<script src="js/app.js?v=10"></script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+  window.addEventListener('load', async () => {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    reg.update(); // buscar versión nueva en cada apertura
+    // cuando una versión NUEVA toma control, recargar solo (adiós "abrir 2 veces");
+    // en la primera instalación (claim inicial) no se recarga
+    let hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) { hadController = true; return; }
+      if (reloaded) return; reloaded = true;
+      window.location.reload();
+    });
+  });
 }
 </script>
 </body>
