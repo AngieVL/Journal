@@ -66,6 +66,79 @@ function toast(msg) {
 // ---- settings ----
 document.getElementById('btn-settings').onclick = openSettings;
 
+// ---- AI planner: "vuélcame el caos" ----
+document.getElementById('btn-plan').onclick = openPlanner;
+
+function openPlanner() {
+  let html = '<div class="modal-title">✨ ' + t('plan.title') + '<button class="icon-btn" id="md-x">✕</button></div>' +
+    '<div class="muted" style="font-size:13px">' + t('plan.hint') + '</div>' +
+    '<textarea id="plan-text" style="min-height:150px;margin-top:10px" placeholder="' + t('plan.ph') + '"></textarea>' +
+    '<div class="modal-actions"><button class="btn" id="plan-go">🪄 ' + t('plan.go') + '</button></div>' +
+    '<div id="plan-result"></div>';
+  openModal(html);
+  const md = document.getElementById('modal-card');
+  md.querySelector('#md-x').onclick = closeModal;
+  md.querySelector('#plan-go').onclick = runPlanner;
+}
+
+async function runPlanner() {
+  const md = document.getElementById('modal-card');
+  const text = md.querySelector('#plan-text').value.trim();
+  if (!text) return;
+  const btn = md.querySelector('#plan-go');
+  btn.disabled = true; btn.textContent = '🧠 ' + t('plan.thinking');
+  let out = null;
+  try {
+    const res = await fetch(backendUrl(), {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'plan', text })
+    });
+    out = await res.json();
+  } catch (e) { out = null; }
+  btn.disabled = false; btn.textContent = '🪄 ' + t('plan.go');
+  const box = md.querySelector('#plan-result');
+  if (!out || !out.ok || !out.plan || !out.plan.length) {
+    box.innerHTML = '<div class="empty">' + t('plan.error') + (out && out.error ? ' (' + esc(out.error) + ')' : '') + '</div>';
+    return;
+  }
+  const items = out.plan.slice().sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);
+  let html = out.nota ? '<div class="card" style="margin-top:14px">💬 ' + esc(out.nota) + '</div>' : '';
+  let lastDate = '';
+  html += '<div style="max-height:40vh;overflow-y:auto">';
+  items.forEach((it, i) => {
+    if (it.date !== lastDate) {
+      lastDate = it.date;
+      html += '<div class="fld" style="font-weight:700;margin-top:10px">📅 ' + nombrePlanDia(it.date) + '</div>';
+    }
+    const cat = catById(it.cat);
+    html += '<label class="task" style="cursor:pointer"><input type="checkbox" checked data-plani="' + i + '" style="width:18px;height:18px">' +
+      (it.time ? '<span class="tk-time">🕐 ' + esc(it.time) + '</span>' : '') +
+      '<span class="tk-title">' + esc(it.title) +
+      (cat ? ' <span class="tk-cat" style="background:' + cat.color + '33">' + esc(cat.name) + '</span>' : '') + '</span></label>';
+  });
+  html += '</div><div class="modal-actions"><button class="btn" id="plan-add">📥 ' + t('plan.add') + '</button></div>';
+  box.innerHTML = html;
+  box.querySelector('#plan-add').onclick = () => {
+    let added = 0;
+    box.querySelectorAll('[data-plani]').forEach(chk => {
+      if (!chk.checked) return;
+      const it = items[Number(chk.dataset.plani)];
+      const tk = { id: uid(), title: it.title, done: false };
+      if (it.time) tk.time = it.time;
+      if (it.cat && catById(it.cat)) tk.cat = it.cat;
+      (DB.tasks[it.date] || (DB.tasks[it.date] = [])).push(tk);
+      added++;
+    });
+    saveDB(); closeModal(); render();
+    toast('📥 ' + added + ' ✓');
+  };
+}
+
+function nombrePlanDia(iso) {
+  const d = fromISO(iso);
+  return t('days.long')[d.getDay()] + ' ' + fmtDate(iso);
+}
+
 function openSettings() {
   let html = '<div class="modal-title">⚙️ ' + t('set.title') + '<button class="icon-btn" id="md-x">✕</button></div>';
   html += '<div class="set-row"><span>' + t('set.lang') + '</span><div class="seg">' +
