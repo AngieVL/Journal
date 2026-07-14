@@ -72,13 +72,15 @@ function todayTrackersTable() {
 
 function taskRowHTML(iso, tk) {
   const cat = catById(tk.cat);
+  // la fuente de la tarea lleva el color de su categoría (más oscuro en tema claro para que se lea)
+  const fontColor = cat && !tk.done
+    ? ((DB.settings.theme === 'dark') ? cat.color : darker(cat.color))
+    : null;
   return '<div class="task' + (tk.done ? ' done' : '') + '" data-task="' + tk.id + '" data-date="' + iso + '"' +
     (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
     '<button class="tk-check">' + (tk.done ? '✓' : '') + '</button>' +
     (tk.time ? '<span class="tk-time">🕐 ' + tk.time + '</span>' : '') +
-    '<span class="tk-title">' + esc(tk.title) +
-    (cat ? ' <span class="tk-cat" style="background:' + cat.color + '33;color:' + darker(cat.color) + '">' + esc(cat.name) + '</span>' : '') +
-    '</span>' +
+    '<span class="tk-title"' + (fontColor ? ' style="color:' + fontColor + ';font-weight:600"' : '') + '>' + esc(tk.title) + '</span>' +
     '<button class="tk-move" title="mover">📅</button>' +
     '<button class="tk-del">✕</button></div>';
 }
