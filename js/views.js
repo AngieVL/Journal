@@ -669,11 +669,12 @@ function openPixelPicker(trk, iso) {
   html += '</div><div class="modal-actions"><button class="btn secondary" id="md-clear">' + t('trk.clear') + '</button></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
-  md.querySelector('#md-x').onclick = closeModal;
+  md.querySelector('#md-x').onclick = () => { closeModal(); render(); };
   md.querySelector('#md-clear').onclick = () => { clearTrackerDay(trk, iso); closeModal(); render(); };
   md.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => {
     setTrackerValue(trk, iso, b.dataset.pk);
-    if (def.multi) { openPixelPicker(trk, iso); } else { closeModal(); render(); }
+    render(); // refrescar la tabla de fondo al instante
+    if (def.multi) { openPixelPicker(trk, iso); } else { closeModal(); }
   });
 }
 

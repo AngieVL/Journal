@@ -51,7 +51,7 @@ function closeModal() {
   document.getElementById('modal-root').classList.add('hidden');
   document.getElementById('modal-card').innerHTML = '';
 }
-document.getElementById('modal-backdrop').onclick = closeModal;
+document.getElementById('modal-backdrop').onclick = () => { closeModal(); render(); };
 
 // ---- toast ----
 let toastTimer = null;
