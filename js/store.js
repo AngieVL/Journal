@@ -212,9 +212,13 @@ function fromISO(iso) { const [y, m, d] = iso.split('-').map(Number); return new
 function addDays(iso, n) { const d = fromISO(iso); d.setDate(d.getDate() + n); return dateISO(d); }
 function monthKey(iso) { return iso.slice(0, 7); }
 function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); } // m: 0-11
-function weekStartISO(iso) { // week starts Sunday (like her journal)
-  const d = fromISO(iso); d.setDate(d.getDate() - d.getDay()); return dateISO(d);
+function weekStartISO(iso) { // la semana empieza en LUNES
+  const d = fromISO(iso);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return dateISO(d);
 }
+// columna (0-6) de una fecha en calendarios lunes-primero
+function mondayCol(dow) { return (dow + 6) % 7; }
 function curYear() { return new Date().getFullYear(); }
 function curQuarter(d) { const m = (d || new Date()).getMonth(); return Math.floor(m / 3) + 1; }
 

@@ -75,7 +75,7 @@ const I18N = {
     'set.sync': 'Sincronización en la nube', 'set.synchint': 'Próximamente: respaldo automático a Google Sheets',
     'set.close': 'Cerrar', 'common.save': 'Guardar', 'common.cancel': 'Cancelar', 'common.delete': 'Eliminar',
     'common.add': 'Agregar', 'common.saved': 'Guardado ✓', 'common.today': 'hoy',
-    'days.short': ['D','L','M','X','J','V','S'],
+    'days.short': ['L','M','X','J','V','S','D'],
     'days.long': ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],
     'months': ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'],
     'months.short': ['E','F','M','A','M','J','X','A','S','O','N','D']
@@ -155,7 +155,7 @@ const I18N = {
     'set.sync': 'Cloud sync', 'set.synchint': 'Coming soon: automatic backup to Google Sheets',
     'set.close': 'Close', 'common.save': 'Save', 'common.cancel': 'Cancel', 'common.delete': 'Delete',
     'common.add': 'Add', 'common.saved': 'Saved ✓', 'common.today': 'today',
-    'days.short': ['S','M','T','W','T','F','S'],
+    'days.short': ['M','T','W','T','F','S','S'],
     'days.long': ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'],
     'months': ['january','february','march','april','may','june','july','august','september','october','november','december'],
     'months.short': ['J','F','M','A','M','J','X','A','S','O','N','D']

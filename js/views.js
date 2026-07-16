@@ -255,9 +255,9 @@ function renderMonth() {
 
   if (UI.monthMode === 'year') return html + renderYearOverview(y);
 
-  // calendar grid
+  // calendar grid (lunes primero)
   const dshort = t('days.short');
-  const first = new Date(y, m, 1).getDay();
+  const first = mondayCol(new Date(y, m, 1).getDay());
   const dim = daysInMonth(y, m);
   const today = todayISO();
   html += '<div class="card"><table class="cal"><tr>' + dshort.map(d => '<th>' + d + '</th>').join('') + '</tr>';
@@ -310,7 +310,7 @@ function renderYearOverview(y) {
   const headColors = ['#bfe8e5', '#bfe8e5', '#bfe8e5', '#fcd9c4', '#fcd9c4', '#fcd9c4', '#ecc7de', '#ecc7de', '#ecc7de', '#f8dfa0', '#f8dfa0', '#f8dfa0'];
   let html = '<div class="card wide"><div class="mini-months">';
   for (let m = 0; m < 12; m++) {
-    const first = new Date(y, m, 1).getDay(), dim = daysInMonth(y, m);
+    const first = mondayCol(new Date(y, m, 1).getDay()), dim = daysInMonth(y, m);
     html += '<div class="mini-m"><div class="mm-name" style="background:' + headColors[m] + '">' + months[m].slice(0, 3) + '</div><table><tr>' +
       dshort.map(d => '<td style="font-weight:700">' + d + '</td>').join('') + '</tr><tr>';
     for (let i = 0; i < first; i++) html += '<td></td>';
