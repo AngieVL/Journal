@@ -135,6 +135,15 @@ label.fld { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 }
 input.time-inp, input[type=time] { width: auto; min-width: 96px; }
 
+/* Eventos inline (Hoy/Semana) — vienen de la pestaña Mes */
+.ev-inline {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--paper); border-radius: 8px;
+  padding: 8px 10px; margin: 4px 0; cursor: pointer;
+}
+.ev-inline-ico { font-size: 15px; }
+.ev-inline-title { flex: 1; font-weight: 600; font-size: 14.5px; }
+
 /* Habit chips */
 .habit-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {

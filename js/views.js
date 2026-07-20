@@ -11,6 +11,7 @@ function renderToday() {
 
   // tasks
   html += '<div class="card"><div class="section-title"><span class="st-left">✍️ ' + t('today.tasks') + '</span></div>';
+  html += eventsForDayHTML(iso);
   html += tasks.length ? sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('') : '<div class="empty">' + t('today.notask') + '</div>';
   html += '<div class="add-row"><input type="text" id="new-task" placeholder="' + t('today.addtask') + '">' +
           '<button class="btn" id="btn-add-task">+</button></div>' +
@@ -96,9 +97,16 @@ function sortTasks(list) {
   return list.slice().sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
 }
 
+// eventos inline (Hoy/Semana) → tocar abre su editor
+function bindDayEvents(root) {
+  root.querySelectorAll('.ev-inline[data-evday]').forEach(el =>
+    el.onclick = () => openEventModal(el.dataset.evday));
+}
+
 function bindToday(root) {
   const iso = todayISO();
   bindTaskEvents(root);
+  bindDayEvents(root);
   root.querySelectorAll('[data-habit]').forEach(btn => btn.onclick = () => {
     const id = btn.dataset.habit;
     const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);
@@ -198,6 +206,7 @@ function renderWeek() {
     const tasks = DB.tasks[iso] || [];
     html += '<div class="card wk-day' + (iso === today ? ' today-col' : '') + '">' +
       '<div class="wd-head"><span>' + days[d.getDay()] + ' ' + d.getDate() + (iso === today ? ' · ' + t('common.today') : '') + '</span></div>';
+    html += eventsForDayHTML(iso);
     html += sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('');
     html += '<div class="add-row"><input type="text" class="wk-new" data-date="' + iso + '" placeholder="' + t('week.addtask') + '">' +
       '<button class="btn small wk-add" data-date="' + iso + '">+</button></div></div>';
@@ -228,6 +237,7 @@ function bindWeek(root) {
     saveDB(); render(); toast('📥 ' + moved);
   };
   bindTaskEvents(root);
+  bindDayEvents(root);
   root.querySelectorAll('.wk-add').forEach(btn => btn.onclick = () => {
     const inp = root.querySelector('.wk-new[data-date="' + btn.dataset.date + '"]');
     if (!inp.value.trim()) return;
@@ -243,6 +253,18 @@ function bindWeek(root) {
 
 // ---------- MONTH ----------
 const EV_COLORS = { event: '#5bc8c0', holiday: '#f5c85c', highlight: '#e08bb8' };
+const EV_ICONS = { event: '📌', holiday: '🎉', highlight: '🌟' };
+
+// eventos de un día concreto, para mostrarlos en Hoy y Semana
+function eventsForDayHTML(iso) {
+  const evs = DB.events.filter(e => e.date === iso);
+  if (!evs.length) return '';
+  return evs.map(e =>
+    '<div class="ev-inline" data-evday="' + e.date + '" style="border-left:4px solid ' + EV_COLORS[e.type] + '">' +
+    '<span class="ev-inline-ico">' + EV_ICONS[e.type] + '</span>' +
+    '<span class="ev-inline-title">' + esc(e.title) + '</span></div>'
+  ).join('');
+}
 
 function renderMonth() {
   const { y, m } = UI.month;
