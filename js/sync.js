@@ -166,6 +166,11 @@ function mergeRemote(r) {
   DB.events = mergeById(DB.events || [], r.events, 'ev:');
   DB.body = mergeById(DB.body || [], r.body, 'body:');
 
+  // tipos de medida personalizados: unión por key
+  DB.bodyFields = DB.bodyFields || [];
+  const bfKeys = new Set(DB.bodyFields.map(f => f.key));
+  (r.bodyFields || []).forEach(f => { if (!bfKeys.has(f.key)) DB.bodyFields.push(f); });
+
   // --- highlights por mes ---
   for (const mk in (r.highlights || {})) {
     DB.highlights[mk] = mergeById(DB.highlights[mk] || (DB.highlights[mk] = []), r.highlights[mk], 'hl:' + mk + ':');

@@ -606,23 +606,33 @@ function renderHabitTracker() {
   return html;
 }
 
-const BODY_FIELDS = ['weight', 'chest', 'armR', 'armL', 'waist', 'hips', 'thighR', 'thighL', 'calfR', 'calfL'];
+const BODY_BUILTIN = ['weight', 'chest', 'armR', 'armL', 'waist', 'hips', 'thighR', 'thighL', 'calfR', 'calfL'];
+
+// lista combinada de campos: los de fábrica + los personalizados de ella
+function bodyFieldList() {
+  const custom = (DB.bodyFields || []).map(f => ({ key: f.key, label: f.name }));
+  return BODY_BUILTIN.map(k => ({ key: k, label: t('body.' + k) })).concat(custom);
+}
 
 function renderBodyTracker() {
   const rows = DB.body.slice().sort((a, b) => a.date < b.date ? -1 : 1);
+  const fields = bodyFieldList();
   let html = '<div class="card wide"><div class="section-title"><span class="st-left">📏 ' + t('trk.body') + '</span>' +
     '<button class="btn small" id="body-add">+ ' + t('trk.addmeasure') + '</button></div>';
   if (rows.length) {
+    html += '<div class="muted" style="font-size:12px;margin-bottom:6px">' + t('body.tapedit') + '</div>';
     html += '<div class="body-table-wrap"><table class="body-t"><tr><th></th>' +
-      rows.map(r => '<th>' + fmtDate(r.date) + '</th>').join('') + '<th></th></tr>';
-    BODY_FIELDS.forEach(f => {
-      html += '<tr><th>' + t('body.' + f) + '</th>' + rows.map(r => '<td>' + (r[f] || '–') + '</td>').join('') + '<td></td></tr>';
+      rows.map(r => '<th class="body-col" data-bodyedit="' + r.id + '">' + fmtDate(r.date) + ' ✏️</th>').join('') + '</tr>';
+    fields.forEach(f => {
+      html += '<tr><th>' + esc(f.label) + '</th>' + rows.map(r =>
+        '<td class="body-cell" data-bodyedit="' + r.id + '">' + (r[f.key] || '–') + '</td>').join('') + '</tr>';
     });
-    html += '<tr><th></th>' + rows.map(r => '<td><button class="tk-del" data-body="' + r.id + '">✕</button></td>').join('') + '<td></td></tr></table></div>';
-    // sparkline for waist + weight
-    ['waist', 'weight'].forEach(f => {
-      const pts = rows.filter(r => r[f]).map(r => Number(r[f]));
-      if (pts.length >= 2) html += '<div class="muted mt8">' + t('body.' + f) + '</div>' + sparkline(pts);
+    html += '</table></div>';
+    // gráficas de evolución: peso, cintura y cualquier campo personalizado con 2+ datos
+    ['weight', 'waist'].concat((DB.bodyFields || []).map(f => f.key)).forEach(k => {
+      const fld = fields.find(f => f.key === k);
+      const pts = rows.filter(r => r[k]).map(r => Number(r[k]));
+      if (fld && pts.length >= 2) html += '<div class="muted mt8">' + esc(fld.label) + '</div>' + sparkline(pts);
     });
   } else {
     html += '<div class="empty">📏 ✍️</div>';
@@ -668,12 +678,8 @@ function bindTrackers(root) {
   }
   if (UI.trk === 'body') {
     const add = root.querySelector('#body-add');
-    if (add) add.onclick = openBodyModal;
-    root.querySelectorAll('[data-body]').forEach(b => b.onclick = () => {
-      tomb('body:' + b.dataset.body);
-      DB.body = DB.body.filter(x => x.id !== b.dataset.body);
-      saveDB(); render();
-    });
+    if (add) add.onclick = () => openBodyModal(null);
+    root.querySelectorAll('[data-bodyedit]').forEach(el => el.onclick = () => openBodyModal(el.dataset.bodyedit));
     return;
   }
   root.querySelectorAll('td.cell[data-date]').forEach(td => td.onclick = () => openPixelPicker(UI.trk, td.dataset.date));
@@ -700,21 +706,74 @@ function openPixelPicker(trk, iso) {
   });
 }
 
-function openBodyModal() {
-  let html = '<div class="modal-title">' + t('trk.addmeasure') + '<button class="icon-btn" id="md-x">✕</button></div>' +
-    '<label class="fld">' + t('ev.date') + '</label><input type="date" id="bd-date" value="' + todayISO() + '">';
-  BODY_FIELDS.forEach(f => {
-    html += '<label class="fld">' + t('body.' + f) + '</label><input type="number" step="0.1" id="bd-' + f + '" inputmode="decimal">';
+function openBodyModal(rowId) {
+  const editing = rowId ? DB.body.find(r => r.id === rowId) : null;
+  const fields = bodyFieldList();
+  let html = '<div class="modal-title">' + (editing ? '✏️ ' + t('body.editmeasure') : t('trk.addmeasure')) + '<button class="icon-btn" id="md-x">✕</button></div>' +
+    '<label class="fld">' + t('ev.date') + '</label><input type="date" id="bd-date" value="' + (editing ? editing.date : todayISO()) + '">';
+  fields.forEach(f => {
+    const val = editing && editing[f.key] != null ? editing[f.key] : '';
+    const isCustom = f.key.indexOf('custom_') === 0;
+    html += '<label class="fld" style="display:flex;justify-content:space-between;align-items:center">' + esc(f.label) +
+      (isCustom ? '<button class="tk-del" data-delfield="' + f.key + '" title="' + t('body.deltype') + '">✕</button>' : '') +
+      '</label><input type="number" step="0.1" data-bd="' + f.key + '" inputmode="decimal" value="' + val + '">';
   });
-  html += '<div class="modal-actions"><button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
-    '<button class="btn" id="md-save">' + t('common.save') + '</button></div>';
+  // agregar tipo de medida personalizado
+  html += '<div class="add-row mt16"><input type="text" id="bd-newfield" placeholder="' + t('body.newtype') + '">' +
+    '<button class="btn secondary" id="bd-addfield">+ ' + t('body.addtype') + '</button></div>';
+  html += '<div class="modal-actions">' +
+    (editing ? '<button class="btn danger" id="bd-delete">🗑</button>' : '') +
+    '<button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
+    '<button class="btn" id="md-save" style="flex:2">' + t('common.save') + '</button></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
-  md.querySelector('#md-x').onclick = md.querySelector('#md-cancel').onclick = closeModal;
+  md.querySelector('#md-x').onclick = md.querySelector('#md-cancel').onclick = () => { closeModal(); render(); };
+
+  // agregar un tipo nuevo: lo guarda y reabre el modal ya con ese campo (conservando lo escrito)
+  md.querySelector('#bd-addfield').onclick = () => {
+    const name = md.querySelector('#bd-newfield').value.trim();
+    if (!name) return;
+    const draft = editing || { id: '__draft__' };
+    md.querySelectorAll('[data-bd]').forEach(inp => { if (inp.value) draft[inp.dataset.bd] = inp.value; });
+    draft.date = md.querySelector('#bd-date').value;
+    (DB.bodyFields || (DB.bodyFields = [])).push({ key: 'custom_' + uid(), name });
+    saveDB();
+    if (!editing) { window._bodyDraft = draft; }
+    openBodyModal(editing ? editing.id : null);
+    if (!editing && window._bodyDraft) { // repoblar el borrador tras reabrir
+      const m2 = document.getElementById('modal-card');
+      m2.querySelector('#bd-date').value = window._bodyDraft.date || todayISO();
+      m2.querySelectorAll('[data-bd]').forEach(inp => { if (window._bodyDraft[inp.dataset.bd]) inp.value = window._bodyDraft[inp.dataset.bd]; });
+      delete window._bodyDraft;
+    }
+  };
+
+  // borrar un tipo de medida personalizado
+  md.querySelectorAll('[data-delfield]').forEach(b => b.onclick = () => {
+    if (!confirm(t('body.deltypeconfirm'))) return;
+    const key = b.dataset.delfield;
+    DB.bodyFields = (DB.bodyFields || []).filter(f => f.key !== key);
+    DB.body.forEach(r => delete r[key]); // quitar ese dato de las mediciones
+    saveDB();
+    openBodyModal(editing ? editing.id : null);
+  });
+
+  if (editing) md.querySelector('#bd-delete').onclick = () => {
+    tomb('body:' + editing.id);
+    DB.body = DB.body.filter(x => x.id !== editing.id);
+    saveDB(); closeModal(); render();
+  };
   md.querySelector('#md-save').onclick = () => {
-    const row = { id: uid(), date: md.querySelector('#bd-date').value };
-    BODY_FIELDS.forEach(f => { const v = md.querySelector('#bd-' + f).value; if (v) row[f] = v; });
-    DB.body.push(row); saveDB(); closeModal(); render(); toast(t('common.saved'));
+    const date = md.querySelector('#bd-date').value;
+    if (!date) return;
+    const row = editing || { id: uid() };
+    row.date = date;
+    md.querySelectorAll('[data-bd]').forEach(inp => {
+      const k = inp.dataset.bd;
+      if (inp.value) row[k] = inp.value; else delete row[k];
+    });
+    if (!editing) DB.body.push(row);
+    saveDB(); closeModal(); render(); toast(t('common.saved'));
   };
 }
 

@@ -25,7 +25,8 @@ const DEFAULT_DB = {
   highlights: {},      // 'YYYY-MM': [{id,text}]
   goals: [],           // {id, year, category, title, done, target, tracker, count, milestones:[{id,quarter,title,done,steps:[{id,title,done}]}]}
   trackers: { mood:{}, productivity:{}, sleep:{}, health:{}, period:{}, gym:{} },
-  body: [],            // {id, date, chest, armR, armL, waist, hips, thighR, thighL, calfR, calfL, weight}
+  body: [],            // {id, date, chest, armR, armL, waist, hips, thighR, thighL, calfR, calfL, weight, custom_xxx...}
+  bodyFields: [],      // tipos de medida personalizados: {key, name}
   reviews: {},         // 'M-2026-07' | 'Q-2026-3' : {feel,win,improve,next,goals:{goalId:status}}
   ritual: {},          // 'start-2026': {word,vision,letter} / 'end-2026': {rating,best,learned,release,thanks}
   celebrated: {},      // logros ya celebrados por WhatsApp
