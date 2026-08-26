@@ -92,7 +92,7 @@ function openPlanner() {
 // ---- dictado por voz: escucha hasta que ELLA lo pare ----
 // El navegador corta el reconocimiento en cada silencio; aquí lo
 // reiniciamos solo mientras micWanted siga en true.
-let planRec = null, micWanted = false, micBase = '', micRestarts = [];
+let planRec = null, micWanted = false, micBase = '', micSessionFinal = '', micRestarts = [];
 
 function micUI(on) {
   const b = document.getElementById('plan-mic');
@@ -101,36 +101,60 @@ function micUI(on) {
   if (h) { h.textContent = on ? t('plan.listening') : ''; h.classList.toggle('hidden', !on); }
 }
 
+const micJoin = (a, b) => {
+  a = (a || '').trim(); b = (b || '').trim();
+  return a && b ? a + ' ' + b : (a || b);
+};
+
+// pinta: texto de sesiones anteriores + lo final de esta sesión + lo provisional
+function micPaint(interim) {
+  const ta = document.getElementById('plan-text');
+  if (!ta) return;
+  ta.value = micJoin(micJoin(micBase, micSessionFinal), interim);
+  ta.scrollTop = ta.scrollHeight;
+}
+
+// consolida lo dictado en la sesión que termina (idempotente)
+function micCommit() {
+  if (micSessionFinal) { micBase = micJoin(micBase, micSessionFinal); micSessionFinal = ''; }
+  micPaint('');
+}
+
 function stopMic() {
   micWanted = false;
   if (planRec) {
-    planRec.onend = null; // evita el reinicio automático
     try { planRec.stop(); } catch (e) {}
     planRec = null;
   }
+  micCommit();
   micUI(false);
 }
 
 function startRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  planRec = new SR();
+  const rec = new SR();
+  planRec = rec;
   // el dictado va SIEMPRE en español, aunque la app esté en inglés
-  planRec.lang = DB.settings.voiceLang || 'es-CO';
-  planRec.continuous = true;
-  planRec.interimResults = true; // se ve lo que va captando: prueba de que sigue oyendo
-  planRec.onresult = e => {
-    const ta = document.getElementById('plan-text');
-    if (!ta) return;
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
+  rec.lang = DB.settings.voiceLang || 'es-CO';
+  rec.continuous = true;
+  rec.interimResults = true; // se ve lo que va captando: prueba de que sigue oyendo
+  micSessionFinal = '';
+
+  rec.onresult = e => {
+    if (planRec !== rec) return; // evento de una sesión vieja: ignorar
+    // Se RECONSTRUYE desde la lista completa en cada evento. El navegador
+    // reenvía frases ya entregadas, así que acumular provocaba repeticiones.
+    let fin = '', interim = '';
+    for (let i = 0; i < e.results.length; i++) {
       const txt = e.results[i][0].transcript;
-      if (e.results[i].isFinal) micBase = (micBase ? micBase.trim() + ' ' : '') + txt.trim();
-      else interim += txt;
+      if (e.results[i].isFinal) fin = micJoin(fin, txt);
+      else interim = micJoin(interim, txt);
     }
-    ta.value = micBase + (interim ? (micBase ? ' ' : '') + interim : '');
-    ta.scrollTop = ta.scrollHeight;
+    micSessionFinal = fin;
+    micPaint(interim);
   };
-  planRec.onerror = ev => {
+
+  rec.onerror = ev => {
     // permiso denegado: no tiene sentido reintentar
     if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
       toast(t('plan.micdenied'));
@@ -138,16 +162,22 @@ function startRec() {
     }
     // 'no-speech' / 'aborted' / 'network': onend se encarga de reiniciar
   };
-  planRec.onend = () => {
+
+  rec.onend = () => {
+    if (planRec !== rec) return;
+    micCommit();               // guarda lo de esta sesión antes de reiniciar
+    planRec = null;
     if (!micWanted) return;
     // freno de seguridad: si se reinicia sin parar, es que algo falla
     const now = Date.now();
     micRestarts = micRestarts.filter(t0 => now - t0 < 10000);
     micRestarts.push(now);
     if (micRestarts.length > 25) { toast(t('plan.micstopped')); stopMic(); return; }
-    try { startRec(); } catch (e) { stopMic(); }
+    // pausa breve: reiniciar en seco deja el micrófono a medio soltar
+    setTimeout(() => { if (micWanted && !planRec) { try { startRec(); } catch (e) { stopMic(); } } }, 350);
   };
-  planRec.start();
+
+  rec.start();
 }
 
 function toggleMic() {
@@ -156,6 +186,7 @@ function toggleMic() {
   if (!SR) { toast(t('plan.novoice')); return; }
   const ta = document.getElementById('plan-text');
   micBase = ta && ta.value ? ta.value.trim() : ''; // conserva lo ya escrito
+  micSessionFinal = '';
   micWanted = true;
   micRestarts = [];
   try { startRec(); micUI(true); } catch (e) { stopMic(); toast(t('plan.novoice')); }
