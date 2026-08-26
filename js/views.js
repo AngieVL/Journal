@@ -277,6 +277,21 @@ function eventRowHTML(e) {
     '<button class="tk-move ev-edit" title="' + t('common.edit') + '">✏️</button></div>';
 }
 
+// fila de tarea para la lista del mes: igual que la del evento, con su fecha
+function monthTaskRowHTML(iso, tk) {
+  const cat = catById(tk.cat);
+  const fontColor = cat && !tk.done
+    ? ((DB.settings.theme === 'dark') ? cat.color : darker(cat.color))
+    : null;
+  return '<div class="task' + (tk.done ? ' done' : '') + '" data-task="' + tk.id + '" data-date="' + iso + '"' +
+    (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
+    '<button class="tk-check">' + (tk.done ? '✓' : '') + '</button>' +
+    '<span class="ev-date">' + fmtDate(iso) + (tk.time ? ' · ' + tk.time : '') + '</span>' +
+    '<span class="tk-title"' + (fontColor ? ' style="color:' + fontColor + ';font-weight:600"' : '') + '>' + esc(tk.title) + '</span>' +
+    '<button class="tk-move" title="' + t('common.edit') + '">✏️</button>' +
+    '<button class="tk-del">✕</button></div>';
+}
+
 // lista unificada del día: eventos + tareas, ordenados por hora
 function dayItemsHTML(iso) {
   const evs = DB.events.filter(e => e.date === iso).map(e => ({ kind: 'ev', time: e.time || '', obj: e }));
@@ -324,17 +339,25 @@ function renderMonth() {
   // events of month
   const mk = y + '-' + String(m + 1).padStart(2, '0');
   const monthEvs = DB.events.filter(e => e.date.startsWith(mk)).sort((a, b) => a.date < b.date ? -1 : 1);
-  html += '<div class="card"><div class="section-title"><span class="st-left">📌 ' + t('month.events') + '</span>' +
+  html += '<div class="card"><div class="section-title"><span class="st-left">📌 ' + t('month.items') + '</span>' +
     '<button class="btn small" id="ev-add">+</button></div>';
-  html += monthEvs.length ? monthEvs.map(e =>
-    '<div class="task ev-row' + (e.done ? ' done' : '') + '" data-evrow="' + e.id + '"' +
-    ' style="border-left:4px solid ' + EV_COLORS[e.type] + ';padding-left:8px;margin-left:-4px">' +
-    '<button class="tk-check ev-check">' + (e.done ? '✓' : '') + '</button>' +
-    '<span class="ev-date">' + fmtDate(e.date) + (e.time ? ' · ' + e.time : '') + '</span>' +
-    '<span class="tk-title ev-title">' + EV_ICONS[e.type] + ' ' + esc(e.title) + '</span>' +
-    '<button class="tk-move ev-edit">✏️</button>' +
-    '<button class="tk-del" data-ev="' + e.id + '">✕</button></div>').join('')
-    : '<div class="empty">' + t('month.noev') + '</div>';
+  // proyección completa del mes: eventos + tareas, en la misma lista
+  const monthItems = monthEvs.map(e => ({ date: e.date, time: e.time || '', kind: 'ev', obj: e }));
+  Object.keys(DB.tasks).forEach(d => {
+    if (!d.startsWith(mk)) return;
+    DB.tasks[d].forEach(tk => monthItems.push({ date: d, time: tk.time || '', kind: 'tk', obj: tk }));
+  });
+  monthItems.sort((a, b) => (a.date + (a.time || '99:99')) < (b.date + (b.time || '99:99')) ? -1 : 1);
+  html += monthItems.length ? monthItems.map(it => it.kind === 'ev'
+    ? '<div class="task ev-row' + (it.obj.done ? ' done' : '') + '" data-evrow="' + it.obj.id + '"' +
+      ' style="border-left:4px solid ' + EV_COLORS[it.obj.type] + ';padding-left:8px;margin-left:-4px">' +
+      '<button class="tk-check ev-check">' + (it.obj.done ? '✓' : '') + '</button>' +
+      '<span class="ev-date">' + fmtDate(it.obj.date) + (it.obj.time ? ' · ' + it.obj.time : '') + '</span>' +
+      '<span class="tk-title ev-title">' + EV_ICONS[it.obj.type] + ' ' + esc(it.obj.title) + '</span>' +
+      '<button class="tk-move ev-edit">✏️</button>' +
+      '<button class="tk-del" data-ev="' + it.obj.id + '">✕</button></div>'
+    : monthTaskRowHTML(it.date, it.obj)).join('')
+    : '<div class="empty">' + t('month.noitems') + '</div>';
   html += '</div>';
 
   // highlights
@@ -405,6 +428,7 @@ function bindMonth(root) {
   const evAdd = root.querySelector('#ev-add');
   if (evAdd) evAdd.onclick = () => openEventModal(null);
   bindDayEvents(root);
+  bindTaskEvents(root); // las tareas del mes: check, editar (✏️) y borrar
   root.querySelectorAll('[data-ev]').forEach(btn => btn.onclick = e => {
     e.stopPropagation();
     tomb('ev:' + btn.dataset.ev);
