@@ -5,14 +5,13 @@ function renderToday() {
   const iso = todayISO();
   const d = new Date();
   const days = t('days.long'), months = t('months');
-  const tasks = DB.tasks[iso] || [];
   let html = '<h1 class="page-title">' + days[d.getDay()] + ' ' + d.getDate() + '</h1>' +
     '<div class="subtitle">' + months[d.getMonth()] + ' ' + d.getFullYear() + '</div>';
 
   // tasks
   html += '<div class="card"><div class="section-title"><span class="st-left">✍️ ' + t('today.tasks') + '</span></div>';
-  html += eventsForDayHTML(iso);
-  html += tasks.length ? sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('') : '<div class="empty">' + t('today.notask') + '</div>';
+  const items = dayItemsHTML(iso);
+  html += items || '<div class="empty">' + t('today.notask') + '</div>';
   html += '<div class="add-row"><input type="text" id="new-task" placeholder="' + t('today.addtask') + '">' +
           '<button class="btn" id="btn-add-task">+</button></div>' +
           '<div class="add-row">' + catSelectHTML('cat-sel', UI.lastCat) +
@@ -97,10 +96,17 @@ function sortTasks(list) {
   return list.slice().sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
 }
 
-// eventos inline (Hoy/Semana) → tocar abre su editor
+// filas de evento (Hoy/Semana/Mes): check para tacharlo, ✏️ o título para editarlo
 function bindDayEvents(root) {
-  root.querySelectorAll('.ev-inline[data-evday]').forEach(el =>
-    el.onclick = () => openEventModal(el.dataset.evday));
+  root.querySelectorAll('.ev-row[data-evrow]').forEach(row => {
+    const ev = DB.events.find(x => x.id === row.dataset.evrow);
+    if (!ev) return;
+    row.querySelector('.ev-check').onclick = () => { ev.done = !ev.done; saveDB(); render(); };
+    const open = () => openEventModal(ev.date, ev.id);
+    row.querySelector('.ev-title').onclick = open;
+    const edit = row.querySelector('.ev-edit');
+    if (edit) edit.onclick = open;
+  });
 }
 
 function bindToday(root) {
@@ -203,11 +209,9 @@ function renderWeek() {
   for (let i = 0; i < 7; i++) {
     const iso = addDays(ws, i);
     const d = fromISO(iso);
-    const tasks = DB.tasks[iso] || [];
     html += '<div class="card wk-day' + (iso === today ? ' today-col' : '') + '">' +
       '<div class="wd-head"><span>' + days[d.getDay()] + ' ' + d.getDate() + (iso === today ? ' · ' + t('common.today') : '') + '</span></div>';
-    html += eventsForDayHTML(iso);
-    html += sortTasks(tasks).map(tk => taskRowHTML(iso, tk)).join('');
+    html += dayItemsHTML(iso);
     html += '<div class="add-row"><input type="text" class="wk-new" data-date="' + iso + '" placeholder="' + t('week.addtask') + '">' +
       '<button class="btn small wk-add" data-date="' + iso + '">+</button></div></div>';
   }
@@ -255,15 +259,22 @@ function bindWeek(root) {
 const EV_COLORS = { event: '#5bc8c0', holiday: '#f5c85c', highlight: '#e08bb8' };
 const EV_ICONS = { event: '📌', holiday: '🎉', highlight: '🌟' };
 
-// eventos de un día concreto, para mostrarlos en Hoy y Semana
-function eventsForDayHTML(iso) {
-  const evs = DB.events.filter(e => e.date === iso);
-  if (!evs.length) return '';
-  return evs.map(e =>
-    '<div class="ev-inline" data-evday="' + e.date + '" style="border-left:4px solid ' + EV_COLORS[e.type] + '">' +
-    '<span class="ev-inline-ico">' + EV_ICONS[e.type] + '</span>' +
-    '<span class="ev-inline-title">' + esc(e.title) + '</span></div>'
-  ).join('');
+// un evento se ve y se comporta como una tarea: hora, check y tachado
+function eventRowHTML(e) {
+  return '<div class="task ev-row' + (e.done ? ' done' : '') + '" data-evrow="' + e.id + '"' +
+    ' style="border-left:4px solid ' + EV_COLORS[e.type] + ';padding-left:8px;margin-left:-4px">' +
+    '<button class="tk-check ev-check">' + (e.done ? '✓' : '') + '</button>' +
+    (e.time ? '<span class="tk-time">🕐 ' + e.time + '</span>' : '') +
+    '<span class="tk-title ev-title">' + EV_ICONS[e.type] + ' ' + esc(e.title) + '</span>' +
+    '<button class="tk-move ev-edit" title="' + t('common.edit') + '">✏️</button></div>';
+}
+
+// lista unificada del día: eventos + tareas, ordenados por hora
+function dayItemsHTML(iso) {
+  const evs = DB.events.filter(e => e.date === iso).map(e => ({ kind: 'ev', time: e.time || '', obj: e }));
+  const tks = (DB.tasks[iso] || []).map(tk => ({ kind: 'tk', time: tk.time || '', obj: tk }));
+  const all = evs.concat(tks).sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
+  return all.map(it => it.kind === 'ev' ? eventRowHTML(it.obj) : taskRowHTML(iso, it.obj)).join('');
 }
 
 function renderMonth() {
@@ -308,8 +319,12 @@ function renderMonth() {
   html += '<div class="card"><div class="section-title"><span class="st-left">📌 ' + t('month.events') + '</span>' +
     '<button class="btn small" id="ev-add">+</button></div>';
   html += monthEvs.length ? monthEvs.map(e =>
-    '<div class="ev-item"><span class="ev-dot" style="background:' + EV_COLORS[e.type] + ';width:9px;height:9px;border-radius:50%"></span>' +
-    '<span class="ev-date">' + fmtDate(e.date) + '</span><span style="flex:1">' + esc(e.title) + '</span>' +
+    '<div class="task ev-row' + (e.done ? ' done' : '') + '" data-evrow="' + e.id + '"' +
+    ' style="border-left:4px solid ' + EV_COLORS[e.type] + ';padding-left:8px;margin-left:-4px">' +
+    '<button class="tk-check ev-check">' + (e.done ? '✓' : '') + '</button>' +
+    '<span class="ev-date">' + fmtDate(e.date) + (e.time ? ' · ' + e.time : '') + '</span>' +
+    '<span class="tk-title ev-title">' + EV_ICONS[e.type] + ' ' + esc(e.title) + '</span>' +
+    '<button class="tk-move ev-edit">✏️</button>' +
     '<button class="tk-del" data-ev="' + e.id + '">✕</button></div>').join('')
     : '<div class="empty">' + t('month.noev') + '</div>';
   html += '</div>';
@@ -381,6 +396,7 @@ function bindMonth(root) {
   root.querySelectorAll('td[data-date]').forEach(td => td.onclick = () => openEventModal(td.dataset.date));
   const evAdd = root.querySelector('#ev-add');
   if (evAdd) evAdd.onclick = () => openEventModal(null);
+  bindDayEvents(root);
   root.querySelectorAll('[data-ev]').forEach(btn => btn.onclick = e => {
     e.stopPropagation();
     tomb('ev:' + btn.dataset.ev);
@@ -404,34 +420,49 @@ function bindMonth(root) {
   hlInp.onkeydown = e => { if (e.key === 'Enter') addHl(); };
 }
 
-function openEventModal(dateIso) {
-  const def = dateIso || dateISO(new Date(UI.month.y, UI.month.m, 1));
-  const dayEvs = dateIso ? DB.events.filter(e => e.date === dateIso) : [];
-  let html = '<div class="modal-title">' + t('ev.new') + (dateIso ? ' · ' + fmtDate(dateIso) : '') + '<button class="icon-btn" id="md-x">✕</button></div>';
+function openEventModal(dateIso, evId) {
+  const editing = evId ? DB.events.find(e => e.id === evId) : null;
+  const def = (editing && editing.date) || dateIso || dateISO(new Date(UI.month.y, UI.month.m, 1));
+  // al tocar un día del calendario: si ya tiene eventos, se listan para elegir cuál editar
+  const dayEvs = (!editing && dateIso) ? DB.events.filter(e => e.date === dateIso) : [];
+  let html = '<div class="modal-title">' + (editing ? '✏️ ' + t('ev.edit') : t('ev.new')) +
+    (dateIso && !editing ? ' · ' + fmtDate(dateIso) : '') + '<button class="icon-btn" id="md-x">✕</button></div>';
   if (dayEvs.length) {
-    html += dayEvs.map(e => '<div class="ev-item"><span class="ev-dot" style="background:' + EV_COLORS[e.type] + ';width:9px;height:9px;border-radius:50%"></span>' +
-      '<span style="flex:1">' + esc(e.title) + '</span><button class="tk-del" data-mdev="' + e.id + '">✕</button></div>').join('');
+    html += dayEvs.map(e => '<div class="ev-item" data-mdopen="' + e.id + '" style="cursor:pointer">' +
+      '<span class="ev-dot" style="background:' + EV_COLORS[e.type] + ';width:9px;height:9px;border-radius:50%"></span>' +
+      '<span style="flex:1">' + (e.done ? '✓ ' : '') + esc(e.title) + (e.time ? ' · ' + e.time : '') + '</span>' +
+      '<span class="muted">✏️</span></div>').join('');
   }
-  html += '<label class="fld">' + t('ev.title') + '</label><input type="text" id="ev-title">' +
+  html += '<label class="fld">' + t('ev.title') + '</label><input type="text" id="ev-title" value="' + (editing ? esc(editing.title) : '') + '">' +
     '<label class="fld">' + t('ev.date') + '</label><input type="date" id="ev-date" value="' + def + '">' +
+    '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="ev-time" value="' + (editing && editing.time ? editing.time : '') + '">' +
     '<label class="fld">' + t('ev.type') + '</label><select id="ev-type">' +
-    '<option value="event">' + t('ev.event') + '</option>' +
-    '<option value="holiday">' + t('ev.holiday') + '</option>' +
-    '<option value="highlight">' + t('ev.highlight') + '</option></select>' +
-    '<div class="modal-actions"><button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
-    '<button class="btn" id="md-save">' + t('common.save') + '</button></div>';
+    ['event', 'holiday', 'highlight'].map(k =>
+      '<option value="' + k + '"' + (editing && editing.type === k ? ' selected' : '') + '>' + t('ev.' + k) + '</option>').join('') +
+    '</select>' +
+    '<div class="modal-actions">' +
+    (editing ? '<button class="btn danger" id="ev-delete">🗑</button>' : '') +
+    '<button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
+    '<button class="btn" id="md-save" style="flex:2">' + t('common.save') + '</button></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = md.querySelector('#md-cancel').onclick = closeModal;
-  md.querySelectorAll('[data-mdev]').forEach(b => b.onclick = () => {
-    tomb('ev:' + b.dataset.mdev);
-    DB.events = DB.events.filter(x => x.id !== b.dataset.mdev);
+  md.querySelectorAll('[data-mdopen]').forEach(el => el.onclick = () => openEventModal(dateIso, el.dataset.mdopen));
+  if (editing) md.querySelector('#ev-delete').onclick = () => {
+    tomb('ev:' + editing.id);
+    DB.events = DB.events.filter(x => x.id !== editing.id);
     saveDB(); closeModal(); render();
-  });
+  };
   md.querySelector('#md-save').onclick = () => {
     const title = md.querySelector('#ev-title').value.trim();
     if (!title) return;
-    DB.events.push({ id: uid(), date: md.querySelector('#ev-date').value, title, type: md.querySelector('#ev-type').value });
+    const time = md.querySelector('#ev-time').value;
+    const ev = editing || { id: uid(), done: false };
+    ev.title = title;
+    ev.date = md.querySelector('#ev-date').value;
+    ev.type = md.querySelector('#ev-type').value;
+    if (time) ev.time = time; else delete ev.time;
+    if (!editing) DB.events.push(ev);
     saveDB(); closeModal(); render(); toast(t('common.saved'));
   };
 }
@@ -444,68 +475,158 @@ const INS_MP = { fantastic: 5, great: 4, okay: 3, down: 2, sad: 1 };
 const INS_PP = { high: 3, mid: 2, low: 1 }; // rest no cuenta
 const INS_SH = { s9: 9.5, s78: 7.5, s65: 5.5, s43: 3.5, s3: 2.5, s0: 0 };
 const insAvg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : null;
+// reemplaza TODAS las apariciones de un marcador (los textos repiten {top}/{worst})
+const fill = (str, k, v) => str.split('{' + k + '}').join(v);
+
+const INS_MIN_N = 5;      // mínimo de días en cada grupo para comparar
+const INS_MIN_REL = 0.12; // diferencia mínima (12% del rango) para considerarla real
+
+// compara dos grupos y decide si la diferencia dice algo o es ruido
+function insCompare(A, B, scale) {
+  if (A.length < INS_MIN_N || B.length < INS_MIN_N) return null; // sin datos suficientes
+  const a = insAvg(A), b = insAvg(B);
+  const rel = Math.abs(a - b) / (scale - 1);
+  if (rel < INS_MIN_REL) return { sig: false, a, b, n: A.length + B.length };
+  return {
+    sig: true, a, b, up: a > b, n: A.length + B.length,
+    pct: Math.round(Math.abs(a - b) / Math.min(a, b) * 100),
+    strong: rel >= 0.3
+  };
+}
 
 function renderInsights() {
-  const mood = DB.trackers.mood, prod = DB.trackers.productivity, sleep = DB.trackers.sleep, gym = DB.trackers.gym;
-  const cards = [];
+  const mood = DB.trackers.mood, prod = DB.trackers.productivity;
+  const sleep = DB.trackers.sleep, gym = DB.trackers.gym, period = DB.trackers.period;
+  const cards = [], sinPatron = [];
 
-  // 1. sueño → productividad (mismo día)
-  const lowS = [], okS = [];
-  for (const d in sleep) {
-    const p = INS_PP[prod[d]];
-    if (p === undefined || INS_SH[sleep[d]] === undefined) continue;
-    (INS_SH[sleep[d]] < 6.5 ? lowS : okS).push(p);
-  }
-  if (lowS.length >= 5 && okS.length >= 5) {
-    cards.push(['😴 ' + t('ins.sleep'), t('ins.sleep.t').replace('{a}', insAvg(lowS).toFixed(1)).replace('{b}', insAvg(okS).toFixed(1))]);
-  }
-
-  // 2. gym → ánimo
-  const gm = [], ngm = [];
-  for (const d in mood) {
-    const m = INS_MP[mood[d]];
-    if (!m) continue;
-    (gym[d] && gym[d] !== 'rest' ? gm : ngm).push(m);
-  }
-  if (gm.length >= 5 && ngm.length >= 5) {
-    cards.push(['🏋️ ' + t('ins.gym'), t('ins.gym.t').replace('{a}', insAvg(gm).toFixed(1)).replace('{b}', insAvg(ngm).toFixed(1))]);
+  // parte los días en dos grupos según una condición, midiendo otra métrica
+  function split(metrica, escalaMap, condicion) {
+    const si = [], no = [];
+    for (const d in metrica) {
+      const v = escalaMap[metrica[d]];
+      if (v === undefined) continue;
+      (condicion(d) ? si : no).push(v);
+    }
+    return [si, no];
   }
 
-  // 3. energía por día de semana (productividad promedio)
+  function addCmp(icon, key, A, B, scale) {
+    const r = insCompare(A, B, scale);
+    if (!r) return;
+    if (!r.sig) { sinPatron.push(t('ins.' + key)); return; }
+    const hi = Math.max(r.a, r.b).toFixed(1), lo = Math.min(r.a, r.b).toFixed(1);
+    let txt = t('ins.' + key + (r.up ? '.up' : '.down'));
+    txt = fill(txt, 'hi', '<b>' + hi + '/' + scale + '</b>');
+    txt = fill(txt, 'lo', '<b>' + lo + '/' + scale + '</b>');
+    txt = fill(txt, 'pct', r.pct);
+    cards.push([icon + ' ' + t('ins.' + key), txt + ' <span class="muted">(' + r.n + ' ' + t('today.days') + ')</span>',
+      r.strong]);
+  }
+
+  const durmioBien = d => INS_SH[sleep[d]] !== undefined && INS_SH[sleep[d]] >= 6.5;
+  const conSueno = d => sleep[d] !== undefined;
+  const entreno = d => gym[d] && gym[d] !== 'rest';
+  const conHabitos = d => (DB.habitLog[d] || []).length >= 3;
+  const enPeriodo = d => (period[d] || []).includes('flow');
+
+  // sueño → productividad y ánimo (solo días con sueño registrado)
+  const [sp1, sp2] = (() => {
+    const si = [], no = [];
+    for (const d in prod) {
+      if (!conSueno(d) || INS_PP[prod[d]] === undefined) continue;
+      (durmioBien(d) ? si : no).push(INS_PP[prod[d]]);
+    }
+    return [si, no];
+  })();
+  addCmp('😴', 'sleepprod', sp1, sp2, 3);
+  const [sm1, sm2] = (() => {
+    const si = [], no = [];
+    for (const d in mood) {
+      if (!conSueno(d) || !INS_MP[mood[d]]) continue;
+      (durmioBien(d) ? si : no).push(INS_MP[mood[d]]);
+    }
+    return [si, no];
+  })();
+  addCmp('🌙', 'sleepmood', sm1, sm2, 5);
+
+  // gym → ánimo y productividad
+  const [gm1, gm2] = split(mood, INS_MP, entreno);
+  addCmp('🏋️', 'gymmood', gm1, gm2, 5);
+  const [gp1, gp2] = split(prod, INS_PP, entreno);
+  addCmp('💪', 'gymprod', gp1, gp2, 3);
+
+  // hábitos → productividad y ánimo
+  const [hp1, hp2] = split(prod, INS_PP, conHabitos);
+  addCmp('🔁', 'habitprod', hp1, hp2, 3);
+  const [hm1, hm2] = split(mood, INS_MP, conHabitos);
+  addCmp('✨', 'habitmood', hm1, hm2, 5);
+
+  // periodo → ánimo
+  const [rm1, rm2] = split(mood, INS_MP, enPeriodo);
+  addCmp('🩸', 'periodmood', rm1, rm2, 5);
+
+  // energía por día de semana
   const wd = [[], [], [], [], [], [], []];
   for (const d in prod) {
     const p = INS_PP[prod[d]];
     if (p !== undefined) wd[fromISO(d).getDay()].push(p);
   }
   const conDatos = wd.map((a, i) => a.length >= 3 ? { i, v: insAvg(a) } : null).filter(Boolean);
-  if (conDatos.length >= 3) {
-    const dias = t('days.long');
+  if (conDatos.length >= 4) {
     const orden = conDatos.slice().sort((a, b) => b.v - a.v);
-    const top = orden.slice(0, 2).map(x => dias[x.i]).join(' + ');
-    const low = dias[orden[orden.length - 1].i];
-    cards.push(['🔋 ' + t('ins.energy'), t('ins.energy.t').replace('{top}', top).replace('{low}', low)]);
+    const top = orden[0], low = orden[orden.length - 1];
+    if ((top.v - low.v) / 2 >= INS_MIN_REL) {
+      const dias = t('days.long');
+      let et = t('ins.energy.t');
+      et = fill(et, 'top', '<b>' + dias[top.i] + '</b>');
+      et = fill(et, 'tv', top.v.toFixed(1));
+      et = fill(et, 'low', '<b>' + dias[low.i] + '</b>');
+      et = fill(et, 'lv', low.v.toFixed(1));
+      cards.push(['🔋 ' + t('ins.energy'), et, true]);
+    } else sinPatron.push(t('ins.energy'));
   }
 
-  // 4. hábitos → productividad
-  const hi = [], lo = [];
-  for (const d in prod) {
-    const p = INS_PP[prod[d]];
-    if (p === undefined) continue;
-    ((DB.habitLog[d] || []).length >= 3 ? hi : lo).push(p);
+  // cumplimiento de tareas por categoría
+  const porCat = {};
+  for (const d in DB.tasks) {
+    DB.tasks[d].forEach(tk => {
+      const c = catById(tk.cat);
+      const name = c ? c.name : t('cat.none');
+      porCat[name] = porCat[name] || { d: 0, t: 0 };
+      porCat[name].t++;
+      if (tk.done) porCat[name].d++;
+    });
   }
-  if (hi.length >= 5 && lo.length >= 5) {
-    cards.push(['🔁 ' + t('ins.habits'), t('ins.habits.t').replace('{a}', insAvg(hi).toFixed(1)).replace('{b}', insAvg(lo).toFixed(1))]);
+  const cats = Object.keys(porCat).filter(c => porCat[c].t >= 4)
+    .map(c => ({ c, pct: Math.round(porCat[c].d / porCat[c].t * 100), n: porCat[c].t }))
+    .sort((a, b) => b.pct - a.pct);
+  if (cats.length >= 2) {
+    const best = cats[0], worst = cats[cats.length - 1];
+    if (best.pct - worst.pct >= 20) {
+      let ct = t('ins.cats.t');
+      ct = fill(ct, 'best', '<b>' + esc(best.c) + '</b>');
+      ct = fill(ct, 'bp', best.pct);
+      ct = fill(ct, 'worst', '<b>' + esc(worst.c) + '</b>');
+      ct = fill(ct, 'wp', worst.pct);
+      cards.push(['🎨 ' + t('ins.cats'), ct, true]);
+    } else sinPatron.push(t('ins.cats'));
   }
+
+  // las más fuertes primero
+  cards.sort((a, b) => (b[2] ? 1 : 0) - (a[2] ? 1 : 0));
 
   let html = '';
-  if (!cards.length) {
-    html = '<div class="card"><div class="empty">' + t('ins.empty') + '</div></div>';
-  } else {
-    cards.forEach(([title, body]) => {
-      html += '<div class="card"><div class="section-title"><span class="st-left">' + title + '</span></div><div>' + body + '</div></div>';
-    });
-    html += '<div class="muted center mt8">' + t('ins.more') + '</div>';
+  if (!cards.length && !sinPatron.length) return '<div class="card"><div class="empty">' + t('ins.empty') + '</div></div>';
+  cards.forEach(([title, body, strong]) => {
+    html += '<div class="card"' + (strong ? ' style="border-color:var(--teal)"' : '') + '>' +
+      '<div class="section-title"><span class="st-left">' + title + (strong ? ' 🔥' : '') + '</span></div>' +
+      '<div>' + body + '</div></div>';
+  });
+  if (!cards.length) html += '<div class="card"><div class="empty">' + t('ins.nostrong') + '</div></div>';
+  if (sinPatron.length) {
+    html += '<div class="card"><div class="muted">' + t('ins.nopattern').replace('{list}', sinPatron.join(', ')) + '</div></div>';
   }
+  html += '<div class="muted center mt8">' + t('ins.more') + '</div>';
   return html;
 }
 

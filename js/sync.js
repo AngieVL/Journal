@@ -164,6 +164,13 @@ function mergeRemote(r) {
     return localArr.filter(x => !dead(prefix + x.id));
   };
   DB.events = mergeById(DB.events || [], r.events, 'ev:');
+  // eventos ya existentes: propagar el "tachado" y la hora entre dispositivos
+  (r.events || []).forEach(re => {
+    const le = DB.events.find(x => x.id === re.id);
+    if (!le) return;
+    le.done = le.done || re.done;
+    if (!le.time && re.time) le.time = re.time;
+  });
   DB.body = mergeById(DB.body || [], r.body, 'body:');
 
   // tipos de medida personalizados: unión por key

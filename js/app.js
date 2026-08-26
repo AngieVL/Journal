@@ -73,6 +73,11 @@ function openPlanner() {
   let html = '<div class="modal-title">✨ ' + t('plan.title') + '<button class="icon-btn" id="md-x">✕</button></div>' +
     '<div class="muted" style="font-size:13px">' + t('plan.hint') + '</div>' +
     '<textarea id="plan-text" style="min-height:150px;margin-top:10px" placeholder="' + t('plan.ph') + '"></textarea>' +
+    '<label class="fld">🗓️ ' + t('plan.horizon') + '</label>' +
+    '<select id="plan-days">' +
+    [[14, t('plan.h14')], [30, t('plan.h30')], [60, t('plan.h60')], [90, t('plan.h90')], [180, t('plan.h180')]]
+      .map(([v, lbl]) => '<option value="' + v + '"' + (v === (UI.planDays || 30) ? ' selected' : '') + '>' + lbl + '</option>').join('') +
+    '</select>' +
     '<div class="modal-actions"><button class="btn secondary" id="plan-mic" style="flex:0 0 62px">🎤</button>' +
     '<button class="btn" id="plan-go">🪄 ' + t('plan.go') + '</button></div>' +
     '<div id="plan-result"></div>';
@@ -115,13 +120,15 @@ async function runPlanner() {
   const md = document.getElementById('modal-card');
   const text = md.querySelector('#plan-text').value.trim();
   if (!text) return;
+  const days = Number(md.querySelector('#plan-days').value) || 30;
+  UI.planDays = days;
   const btn = md.querySelector('#plan-go');
   btn.disabled = true; btn.textContent = '🧠 ' + t('plan.thinking');
   let out = null;
   try {
     const res = await fetch(backendUrl(), {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'plan', text })
+      body: JSON.stringify({ action: 'plan', text, days })
     });
     out = await res.json();
   } catch (e) { out = null; }
