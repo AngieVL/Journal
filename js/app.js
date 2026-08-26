@@ -114,7 +114,8 @@ function stopMic() {
 function startRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   planRec = new SR();
-  planRec.lang = DB.settings.lang === 'en' ? 'en-US' : 'es-CO';
+  // el dictado va SIEMPRE en español, aunque la app esté en inglés
+  planRec.lang = DB.settings.voiceLang || 'es-CO';
   planRec.continuous = true;
   planRec.interimResults = true; // se ve lo que va captando: prueba de que sigue oyendo
   planRec.onresult = e => {
@@ -225,6 +226,10 @@ function openSettings() {
   html += '<div class="set-row"><span>' + t('set.lang') + '</span><div class="seg">' +
     '<button id="lang-es" class="' + (DB.settings.lang === 'es' ? 'on' : '') + '">Español</button>' +
     '<button id="lang-en" class="' + (DB.settings.lang === 'en' ? 'on' : '') + '">English</button></div></div>';
+  const vl = DB.settings.voiceLang || 'es-CO';
+  html += '<div class="set-row"><span>🎤 ' + t('set.voicelang') + '</span><div class="seg">' +
+    '<button id="vl-es" class="' + (vl === 'es-CO' ? 'on' : '') + '">Español</button>' +
+    '<button id="vl-en" class="' + (vl === 'en-US' ? 'on' : '') + '">English</button></div></div>';
   const theme = DB.settings.theme || 'light';
   html += '<div class="set-row"><span>' + t('set.theme') + '</span><div class="seg">' +
     '<button id="th-light" class="' + (theme === 'light' ? 'on' : '') + '">☀️ ' + t('theme.light') + '</button>' +
@@ -262,6 +267,8 @@ function openSettings() {
   md.querySelector('#md-x').onclick = closeModal;
   md.querySelector('#lang-es').onclick = () => { DB.settings.lang = 'es'; saveDB(); render(); openSettings(); };
   md.querySelector('#lang-en').onclick = () => { DB.settings.lang = 'en'; saveDB(); render(); openSettings(); };
+  md.querySelector('#vl-es').onclick = () => { DB.settings.voiceLang = 'es-CO'; saveDB(); openSettings(); };
+  md.querySelector('#vl-en').onclick = () => { DB.settings.voiceLang = 'en-US'; saveDB(); openSettings(); };
   md.querySelector('#th-light').onclick = () => { DB.settings.theme = 'light'; saveDB(); applyTheme(); openSettings(); };
   md.querySelector('#th-dark').onclick = () => { DB.settings.theme = 'dark'; saveDB(); applyTheme(); openSettings(); };
   md.querySelectorAll('.acc-swatch').forEach(b => b.onclick = () => {
