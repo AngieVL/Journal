@@ -135,6 +135,14 @@ label.fld { display: block; font-size: 13px; font-weight: 600; color: var(--ink-
 }
 input.time-inp, input[type=time] { width: auto; min-width: 96px; }
 
+/* Dictado por voz */
+.mic-hint {
+  text-align: center; font-size: 13px; font-weight: 600; color: var(--coral);
+  margin-top: 8px; animation: micpulse 1.6s ease-in-out infinite;
+}
+@keyframes micpulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.btn.mic-on { background: var(--coral); color: #fff; border-color: var(--coral); animation: micpulse 1.6s ease-in-out infinite; }
+
 /* Filas de evento: se comportan como tareas (hora, check, tachado) */
 .ev-row { background: var(--paper); border-radius: 8px; }
 .ev-row .ev-title { cursor: pointer; font-weight: 600; }

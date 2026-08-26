@@ -80,6 +80,7 @@ function openPlanner() {
     '</select>' +
     '<div class="modal-actions"><button class="btn secondary" id="plan-mic" style="flex:0 0 62px">🎤</button>' +
     '<button class="btn" id="plan-go">🪄 ' + t('plan.go') + '</button></div>' +
+    '<div id="mic-hint" class="mic-hint hidden"></div>' +
     '<div id="plan-result"></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
@@ -88,32 +89,75 @@ function openPlanner() {
   md.querySelector('#plan-mic').onclick = toggleMic;
 }
 
-// dictado por voz (Web Speech API, igual que en Finanzas)
-let planRec = null;
-function stopMic() {
-  if (planRec) { try { planRec.stop(); } catch (e) {} planRec = null; }
+// ---- dictado por voz: escucha hasta que ELLA lo pare ----
+// El navegador corta el reconocimiento en cada silencio; aquí lo
+// reiniciamos solo mientras micWanted siga en true.
+let planRec = null, micWanted = false, micBase = '', micRestarts = [];
+
+function micUI(on) {
   const b = document.getElementById('plan-mic');
-  if (b) b.textContent = '🎤';
+  if (b) { b.textContent = on ? '⏹️' : '🎤'; b.classList.toggle('mic-on', on); }
+  const h = document.getElementById('mic-hint');
+  if (h) { h.textContent = on ? t('plan.listening') : ''; h.classList.toggle('hidden', !on); }
 }
-function toggleMic() {
-  if (planRec) { stopMic(); return; }
+
+function stopMic() {
+  micWanted = false;
+  if (planRec) {
+    planRec.onend = null; // evita el reinicio automático
+    try { planRec.stop(); } catch (e) {}
+    planRec = null;
+  }
+  micUI(false);
+}
+
+function startRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast(t('plan.novoice')); return; }
   planRec = new SR();
   planRec.lang = DB.settings.lang === 'en' ? 'en-US' : 'es-CO';
   planRec.continuous = true;
-  planRec.interimResults = false;
+  planRec.interimResults = true; // se ve lo que va captando: prueba de que sigue oyendo
   planRec.onresult = e => {
     const ta = document.getElementById('plan-text');
     if (!ta) return;
+    let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) ta.value = (ta.value ? ta.value.trim() + ' ' : '') + e.results[i][0].transcript.trim();
+      const txt = e.results[i][0].transcript;
+      if (e.results[i].isFinal) micBase = (micBase ? micBase.trim() + ' ' : '') + txt.trim();
+      else interim += txt;
     }
+    ta.value = micBase + (interim ? (micBase ? ' ' : '') + interim : '');
+    ta.scrollTop = ta.scrollHeight;
   };
-  planRec.onend = () => { if (planRec) stopMic(); };
-  planRec.onerror = () => stopMic();
+  planRec.onerror = ev => {
+    // permiso denegado: no tiene sentido reintentar
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+      toast(t('plan.micdenied'));
+      stopMic();
+    }
+    // 'no-speech' / 'aborted' / 'network': onend se encarga de reiniciar
+  };
+  planRec.onend = () => {
+    if (!micWanted) return;
+    // freno de seguridad: si se reinicia sin parar, es que algo falla
+    const now = Date.now();
+    micRestarts = micRestarts.filter(t0 => now - t0 < 10000);
+    micRestarts.push(now);
+    if (micRestarts.length > 25) { toast(t('plan.micstopped')); stopMic(); return; }
+    try { startRec(); } catch (e) { stopMic(); }
+  };
   planRec.start();
-  document.getElementById('plan-mic').textContent = '🔴';
+}
+
+function toggleMic() {
+  if (micWanted) { stopMic(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast(t('plan.novoice')); return; }
+  const ta = document.getElementById('plan-text');
+  micBase = ta && ta.value ? ta.value.trim() : ''; // conserva lo ya escrito
+  micWanted = true;
+  micRestarts = [];
+  try { startRec(); micUI(true); } catch (e) { stopMic(); toast(t('plan.novoice')); }
 }
 
 async function runPlanner() {
