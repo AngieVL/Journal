@@ -213,7 +213,9 @@ function renderWeek() {
       '<div class="wd-head"><span>' + days[d.getDay()] + ' ' + d.getDate() + (iso === today ? ' · ' + t('common.today') : '') + '</span></div>';
     html += dayItemsHTML(iso);
     html += '<div class="add-row"><input type="text" class="wk-new" data-date="' + iso + '" placeholder="' + t('week.addtask') + '">' +
-      '<button class="btn small wk-add" data-date="' + iso + '">+</button></div></div>';
+      '<button class="btn small wk-add" data-date="' + iso + '">+</button></div>' +
+      '<div class="add-row">' + catSelectHTML('wk-cat', UI.lastCat).replace('<select', '<select data-date="' + iso + '"') +
+      '<input type="time" class="time-inp wk-time" data-date="' + iso + '"></div></div>';
   }
   const wkKey = 'N' + ws;
   html += '<div class="card"><div class="section-title"><span class="st-left">📝 ' + t('week.notes') + '</span></div>' +
@@ -243,9 +245,15 @@ function bindWeek(root) {
   bindTaskEvents(root);
   bindDayEvents(root);
   root.querySelectorAll('.wk-add').forEach(btn => btn.onclick = () => {
-    const inp = root.querySelector('.wk-new[data-date="' + btn.dataset.date + '"]');
+    const iso = btn.dataset.date;
+    const inp = root.querySelector('.wk-new[data-date="' + iso + '"]');
     if (!inp.value.trim()) return;
-    (DB.tasks[btn.dataset.date] || (DB.tasks[btn.dataset.date] = [])).push({ id: uid(), title: inp.value.trim(), done: false });
+    const tk = { id: uid(), title: inp.value.trim(), done: false };
+    const tm = root.querySelector('.wk-time[data-date="' + iso + '"]');
+    if (tm && tm.value) tk.time = tm.value;
+    const cat = root.querySelector('.wk-cat[data-date="' + iso + '"]');
+    if (cat && cat.value) { tk.cat = cat.value; UI.lastCat = cat.value; }
+    (DB.tasks[iso] || (DB.tasks[iso] = [])).push(tk);
     saveDB(); render();
   });
   root.querySelectorAll('.wk-new').forEach(inp => inp.onkeydown = e => {
