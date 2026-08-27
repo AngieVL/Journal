@@ -1,5 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
-const APP_VERSION = '25'; // debe coincidir con ?v= de index.html y sw.js
+const APP_VERSION = '26'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----
@@ -236,8 +236,11 @@ function openSettings() {
   html += '<label class="fld mt16">☁️ ' + t('set.sync') + '</label>' +
     '<div class="set-row"><span id="sync-state" class="muted">' + (typeof syncStateText === 'function' ? syncStateText() : '') + '</span>' +
     '<div style="display:flex;gap:8px">' +
-    '<button class="btn small secondary" id="btn-sync-now">🔄 ' + t('sync.now') + '</button>' +
-    '<button class="btn small secondary" id="btn-restore">⬇️ ' + t('sync.restore') + '</button></div></div>';
+    '<button class="btn small secondary" id="btn-sync-now">🔄 ' + t('sync.now') + '</button></div></div>' +
+    '<div class="muted" style="font-size:12px;margin-top:6px">' + t('sync.fixhint') + '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:6px">' +
+    '<button class="btn small secondary" id="btn-force" style="flex:1">⬆️ ' + t('sync.force') + '</button>' +
+    '<button class="btn small secondary" id="btn-restore" style="flex:1">⬇️ ' + t('sync.restore') + '</button></div>';
   html += '<div class="muted mt8 center">Mi Agenda <b>v' + APP_VERSION + '</b> · ' + (DB.settings.name || '') + ' 💜</div>';
   openModal(html);
   const md = document.getElementById('modal-card');
@@ -294,6 +297,8 @@ function openSettings() {
   };
   const restore = md.querySelector('#btn-restore');
   if (restore) restore.onclick = restoreFromCloud;
+  const force = md.querySelector('#btn-force');
+  if (force) force.onclick = forcePush;
   md.querySelector('#btn-export').onclick = exportData;
   md.querySelector('#btn-import').onclick = () => md.querySelector('#import-file').click();
   md.querySelector('#import-file').onchange = e => {

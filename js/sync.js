@@ -111,7 +111,7 @@ function mergeRemote(r) {
       else {
         idMap[rx.id] = lx.id;
         if (onBoth) onBoth(lx, rx);
-        else if (remoteNewer(lx, rx)) { const id = lx.id; overwrite(lx, rx); lx.id = id; } // color/nombre editados allá
+        else if (remoteNewer(lx, rx) || (!lx.mt && !rx.mt)) { const id = lx.id; overwrite(lx, rx); lx.id = id; }
       }
     });
     return localArr.filter(x => !dead(prefix + lowKey(x.name || x.title)));
@@ -156,7 +156,14 @@ function mergeRemote(r) {
       const lt = loc.find(t => t.id === rt.id);
       // gana la edición más reciente (título, hora, categoría, tachado...)
       if (remoteNewer(lt, rt)) overwrite(lt, rt);
-      else if (!lt.mt && !rt.mt) lt.done = lt.done || rt.done; // datos viejos sin marca
+      else if (!lt.mt && !rt.mt) {
+        // Datos de antes de las marcas de tiempo: manda la copia de la nube
+        // (así los dos dispositivos convergen en vez de quedarse cada uno
+        // con su versión), pero nunca se destacha algo ya hecho.
+        const done = lt.done || rt.done;
+        overwrite(lt, rt);
+        lt.done = done;
+      }
     });
   }
   for (const d in DB.tasks) {
@@ -204,9 +211,10 @@ function mergeRemote(r) {
       const lx = byId.get(rx.id);
       if (!lx) { localArr.push(rx); return; }
       if (remoteNewer(lx, rx)) overwrite(lx, rx);            // edición más reciente gana
-      else if (!lx.mt && !rx.mt) {                            // datos viejos sin marca
-        lx.done = lx.done || rx.done;
-        if (!lx.time && rx.time) lx.time = rx.time;
+      else if (!lx.mt && !rx.mt) {                            // datos viejos: converge a la nube
+        const done = lx.done || rx.done;
+        overwrite(lx, rx);
+        lx.done = done;
       }
     });
     return localArr.filter(x => !dead(prefix + x.id));
@@ -264,15 +272,28 @@ function checkStreakCelebration(habitId) {
   if (STREAK_MILESTONES.includes(st)) celebrate('streak', habitId + ':' + st, h.name, st);
 }
 
+// Traer la copia de la nube tal cual (reemplaza lo del dispositivo)
 async function restoreFromCloud() {
   const url = backendUrl();
-  if (!url) return;
+  if (!url) { toast('❌'); return; }
+  if (!confirm(t('sync.restoreconfirm'))) return;
   try {
-    const res = await fetch(url + '?action=restore');
+    const res = await fetchT(url + '?action=restore&_=' + Date.now(), { cache: 'no-store' });
     const out = await res.json();
-    if (!out.ok || !out.db) { toast('❌'); return; }
-    if (!confirm(t('sync.restoreconfirm'))) return;
+    if (!out.ok || !out.db) { toast(t('sync.fail')); return; }
     DB = out.db; window.DB = DB;
-    saveDB(); applyTheme(); closeModal(); render(); toast(t('common.saved'));
-  } catch (e) { toast('❌'); }
+    for (const k in DEFAULT_DB) if (DB[k] === undefined) DB[k] = JSON.parse(JSON.stringify(DEFAULT_DB[k]));
+    localStorage.setItem(STORE_KEY, JSON.stringify(DB)); // sin re-subir: ya es igual a la nube
+    applyTheme(); closeModal(); render();
+    toast(t('sync.restored'));
+  } catch (e) { toast(t('sync.fail')); }
+}
+
+// Mandar lo de ESTE dispositivo a la nube tal cual (pisa lo que haya)
+async function forcePush() {
+  const url = backendUrl();
+  if (!url) { toast('❌'); return; }
+  if (!confirm(t('sync.forceconfirm'))) return;
+  const ok = await pushOnly();
+  toast(ok ? t('sync.forced') : t('sync.fail'));
 }
