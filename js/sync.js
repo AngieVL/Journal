@@ -24,13 +24,22 @@ function scheduleSync() {
   syncTimer = setTimeout(pushOnly, 8000); // subir cambios 8s después del último
 }
 
+// fetch con límite de tiempo: sin esto una petición colgada dejaba
+// la sincronización bloqueada para siempre (syncing en true)
+function fetchT(url, opts, ms) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), ms || 25000);
+  return fetch(url, Object.assign({ signal: ctrl.signal }, opts || {}))
+    .finally(() => clearTimeout(to));
+}
+
 async function pushOnly() {
   const url = backendUrl();
   if (!url || syncing || !navigator.onLine) return false;
   syncing = true;
   let ok = false;
   try {
-    const res = await fetch(url, {
+    const res = await fetchT(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'sync', db: DB })
     });
@@ -48,13 +57,14 @@ async function fullSync() {
   syncing = true;
   let ok = false;
   try {
-    const res = await fetch(url + '?action=restore');
+    // el parámetro _ evita que el navegador entregue una copia guardada
+    const res = await fetchT(url + '?action=restore&_=' + Date.now(), { cache: 'no-store' });
     const out = await res.json();
     if (out.ok && out.db) {
       mergeRemote(out.db);
       localStorage.setItem(STORE_KEY, JSON.stringify(DB)); // guardar sin re-agendar push
     }
-    const res2 = await fetch(url, {
+    const res2 = await fetchT(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'sync', db: DB })
     });
@@ -75,6 +85,13 @@ function markSynced() {
 // Habitos/categorías/metas se casan por NOMBRE (cada dispositivo generó sus
 // propios ids al sembrarse); tareas/eventos/etc. por id. done gana sobre no-done.
 const lowKey = s => String(s || '').trim().toLowerCase();
+// ¿la versión remota de este elemento es más nueva que la local?
+const remoteNewer = (l, r) => (r && r.mt ? r.mt : 0) > (l && l.mt ? l.mt : 0);
+// copia los campos del remoto sobre el local (conservando el id)
+function overwrite(local, remote) {
+  Object.keys(local).forEach(k => { if (k !== 'id' && !(k in remote)) delete local[k]; });
+  Object.keys(remote).forEach(k => { if (k !== 'id') local[k] = remote[k]; });
+}
 
 function mergeRemote(r) {
   if (!r || !r.trackers) return;
@@ -91,7 +108,11 @@ function mergeRemote(r) {
       if (dead(k)) return;
       const lx = byName.get(lowKey(rx.name || rx.title));
       if (!lx) { localArr.push(rx); byName.set(lowKey(rx.name || rx.title), rx); idMap[rx.id] = rx.id; }
-      else { idMap[rx.id] = lx.id; if (onBoth) onBoth(lx, rx); }
+      else {
+        idMap[rx.id] = lx.id;
+        if (onBoth) onBoth(lx, rx);
+        else if (remoteNewer(lx, rx)) { const id = lx.id; overwrite(lx, rx); lx.id = id; } // color/nombre editados allá
+      }
     });
     return localArr.filter(x => !dead(prefix + lowKey(x.name || x.title)));
   };
@@ -101,6 +122,8 @@ function mergeRemote(r) {
 
   // --- metas por título; hitos y pasos por título dentro de su meta ---
   DB.goals = mergeNamed(DB.goals || [], r.goals, 'goal:', (lg, rg) => {
+    // si la meta se editó más recientemente allá, se toma entera (hitos y pasos incluidos)
+    if (remoteNewer(lg, rg)) { overwrite(lg, rg); return; }
     lg.done = lg.done || rg.done;
     if ((rg.count || 0) > (lg.count || 0)) lg.count = rg.count;
     const msByName = new Map((lg.milestones || []).map(m => [lowKey(m.title) + '|' + m.quarter, m]));
@@ -129,8 +152,11 @@ function mergeRemote(r) {
     r.tasks[d].forEach(rt => {
       if (dead('task:' + d + ':' + rt.id)) return;
       if (rt.cat && idMap[rt.cat]) rt.cat = idMap[rt.cat];
-      if (!ids.has(rt.id)) loc.push(rt);
-      else { const lt = loc.find(t => t.id === rt.id); lt.done = lt.done || rt.done; }
+      if (!ids.has(rt.id)) { loc.push(rt); return; }
+      const lt = loc.find(t => t.id === rt.id);
+      // gana la edición más reciente (título, hora, categoría, tachado...)
+      if (remoteNewer(lt, rt)) overwrite(lt, rt);
+      else if (!lt.mt && !rt.mt) lt.done = lt.done || rt.done; // datos viejos sin marca
     });
   }
   for (const d in DB.tasks) {
@@ -138,39 +164,54 @@ function mergeRemote(r) {
     if (!DB.tasks[d].length) delete DB.tasks[d];
   }
 
-  // --- habitLog: unión por día (remapeando ids de hábitos remotos) ---
-  for (const d in (r.habitLog || {})) {
-    const loc = DB.habitLog[d] || (DB.habitLog[d] = []);
-    r.habitLog[d].forEach(hid => {
-      const mapped = idMap[hid] || hid;
-      if (!loc.includes(mapped)) loc.push(mapped);
-    });
-  }
+  // marcas de tiempo de los datos sin id (trackers, hábitos del día, notas)
+  const lmt = DB.mt || (DB.mt = {}), rmt = r.mt || {};
+  const rNewer = k => (rmt[k] || 0) > (lmt[k] || 0);
 
-  // --- trackers: días que faltan localmente se toman de la nube ---
+  // --- habitLog: el día editado más recientemente manda (permite desmarcar) ---
+  const habDays = new Set(Object.keys(r.habitLog || {}).concat(
+    Object.keys(rmt).filter(k => k.startsWith('hab:')).map(k => k.slice(4))));
+  habDays.forEach(d => {
+    const rem = (r.habitLog || {})[d];
+    if (DB.habitLog[d] === undefined) { if (rem) DB.habitLog[d] = rem.map(h => idMap[h] || h); return; }
+    if (rNewer('hab:' + d)) {
+      if (rem) DB.habitLog[d] = rem.map(h => idMap[h] || h); else delete DB.habitLog[d];
+    } else if (!lmt['hab:' + d] && !rmt['hab:' + d] && rem) {
+      rem.forEach(h => { const m = idMap[h] || h; if (!DB.habitLog[d].includes(m)) DB.habitLog[d].push(m); });
+    }
+  });
+
+  // --- trackers: gana el día pintado más recientemente (y respeta los borrados) ---
   for (const trk in (r.trackers || {})) {
     DB.trackers[trk] = DB.trackers[trk] || {};
     for (const d in r.trackers[trk]) {
-      if (DB.trackers[trk][d] === undefined) DB.trackers[trk][d] = r.trackers[trk][d];
+      if (DB.trackers[trk][d] === undefined || rNewer('trk:' + trk + ':' + d)) {
+        DB.trackers[trk][d] = r.trackers[trk][d];
+      }
     }
   }
+  Object.keys(rmt).forEach(k => {              // día borrado en el otro dispositivo
+    if (k.indexOf('trk:') !== 0 || !rNewer(k)) return;
+    const [, trk, d] = k.split(':');
+    if (DB.trackers[trk] && (r.trackers[trk] || {})[d] === undefined) delete DB.trackers[trk][d];
+  });
 
   // --- eventos y medidas corporales por id ---
   const mergeById = (localArr, remoteArr, prefix) => {
-    const ids = new Set(localArr.map(x => x.id));
+    const byId = new Map(localArr.map(x => [x.id, x]));
     (remoteArr || []).forEach(rx => {
-      if (!dead(prefix + rx.id) && !ids.has(rx.id)) localArr.push(rx);
+      if (dead(prefix + rx.id)) return;
+      const lx = byId.get(rx.id);
+      if (!lx) { localArr.push(rx); return; }
+      if (remoteNewer(lx, rx)) overwrite(lx, rx);            // edición más reciente gana
+      else if (!lx.mt && !rx.mt) {                            // datos viejos sin marca
+        lx.done = lx.done || rx.done;
+        if (!lx.time && rx.time) lx.time = rx.time;
+      }
     });
     return localArr.filter(x => !dead(prefix + x.id));
   };
   DB.events = mergeById(DB.events || [], r.events, 'ev:');
-  // eventos ya existentes: propagar el "tachado" y la hora entre dispositivos
-  (r.events || []).forEach(re => {
-    const le = DB.events.find(x => x.id === re.id);
-    if (!le) return;
-    le.done = le.done || re.done;
-    if (!le.time && re.time) le.time = re.time;
-  });
   DB.body = mergeById(DB.body || [], r.body, 'body:');
 
   // tipos de medida personalizados: unión por key
@@ -183,11 +224,13 @@ function mergeRemote(r) {
     DB.highlights[mk] = mergeById(DB.highlights[mk] || (DB.highlights[mk] = []), r.highlights[mk], 'hl:' + mk + ':');
   }
 
-  // --- notas, revisiones, rituales: se toma lo que falte localmente ---
-  for (const k in (r.weekNotes || {})) if (!DB.weekNotes[k]) DB.weekNotes[k] = r.weekNotes[k];
-  for (const k in (r.reviews || {})) if (!DB.reviews[k]) DB.reviews[k] = r.reviews[k];
-  for (const k in (r.ritual || {})) if (!DB.ritual[k]) DB.ritual[k] = r.ritual[k];
+  // --- notas, revisiones, rituales: falta localmente o se editó después allá ---
+  for (const k in (r.weekNotes || {})) if (!DB.weekNotes[k] || rNewer('wn:' + k)) DB.weekNotes[k] = r.weekNotes[k];
+  for (const k in (r.reviews || {})) if (!DB.reviews[k] || rNewer('rev:' + k)) DB.reviews[k] = r.reviews[k];
+  for (const k in (r.ritual || {})) if (!DB.ritual[k] || rNewer('rit:' + k)) DB.ritual[k] = r.ritual[k];
   DB.celebrated = Object.assign({}, r.celebrated || {}, DB.celebrated || {});
+  // conserva la marca más nueva de cada clave
+  Object.keys(rmt).forEach(k => { if ((rmt[k] || 0) > (lmt[k] || 0)) lmt[k] = rmt[k]; });
 }
 
 function syncStateText() {

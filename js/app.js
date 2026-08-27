@@ -184,7 +184,7 @@ async function runPlanner() {
       const tk = { id: uid(), title: it.title, done: false };
       if (it.time) tk.time = it.time;
       if (it.cat && catById(it.cat)) tk.cat = it.cat;
-      (DB.tasks[it.date] || (DB.tasks[it.date] = [])).push(tk);
+      (DB.tasks[it.date] || (DB.tasks[it.date] = [])).push(stamp(tk));
       added++;
     });
     saveDB(); closeModal(); render();
@@ -260,16 +260,16 @@ function openSettings() {
   md.querySelector('#btn-add-habit').onclick = () => {
     const inp = md.querySelector('#new-habit');
     if (!inp.value.trim()) return;
-    DB.habits.push({ id: uid(), name: inp.value.trim(), color: habitColors[DB.habits.length % habitColors.length] });
+    DB.habits.push(stamp({ id: uid(), name: inp.value.trim(), color: habitColors[DB.habits.length % habitColors.length] }));
     saveDB(); render(); openSettings();
   };
   md.querySelectorAll('[data-catcolor]').forEach(inp => inp.onchange = () => {
     const c = catById(inp.dataset.catcolor);
-    if (c) { c.color = inp.value; saveDB(); render(); }
+    if (c) { c.color = inp.value; stamp(c); saveDB(); render(); }
   });
   md.querySelectorAll('[data-catname]').forEach(inp => inp.onchange = () => {
     const c = catById(inp.dataset.catname);
-    if (c && inp.value.trim()) { c.name = inp.value.trim(); saveDB(); render(); }
+    if (c && inp.value.trim()) { c.name = inp.value.trim(); stamp(c); saveDB(); render(); }
   });
   md.querySelectorAll('[data-catdel]').forEach(b => b.onclick = () => {
     const dc = catById(b.dataset.catdel);
@@ -281,7 +281,7 @@ function openSettings() {
   md.querySelector('#btn-add-cat').onclick = () => {
     const inp = md.querySelector('#new-cat');
     if (!inp.value.trim()) return;
-    (DB.categories || (DB.categories = [])).push({ id: uid(), name: inp.value.trim(), color: catColors[DB.categories.length % catColors.length] });
+    (DB.categories || (DB.categories = [])).push(stamp({ id: uid(), name: inp.value.trim(), color: catColors[DB.categories.length % catColors.length] }));
     saveDB(); render(); openSettings();
   };
   const syncNow = md.querySelector('#btn-sync-now');

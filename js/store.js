@@ -30,7 +30,8 @@ const DEFAULT_DB = {
   reviews: {},         // 'M-2026-07' | 'Q-2026-3' : {feel,win,improve,next,goals:{goalId:status}}
   ritual: {},          // 'start-2026': {word,vision,letter} / 'end-2026': {rating,best,learned,release,thanks}
   celebrated: {},      // logros ya celebrados por WhatsApp
-  tombstones: []       // claves de cosas borradas (para que la fusión multi-dispositivo no las resucite)
+  tombstones: [],      // claves de cosas borradas (para que la fusión multi-dispositivo no las resucite)
+  mt: {}               // última modificación de datos sin id (trackers, hábitos del día, notas...)
 };
 
 let DB = null;
@@ -200,6 +201,12 @@ function saveDB() {
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// ---- marcas de tiempo para la fusión entre dispositivos ----
+// Sin esto, al editar algo que ya existía en el otro dispositivo (título,
+// hora, categoría...) el cambio nunca viajaba: gana el más reciente.
+function stamp(o) { if (o) o.mt = Date.now(); return o; }
+function stampKey(k) { (DB.mt || (DB.mt = {}))[k] = Date.now(); }
 
 function catById(id) { return (DB.categories || []).find(c => c.id === id) || null; }
 function catColor(id) { const c = catById(id); return c ? c.color : 'transparent'; }

@@ -98,7 +98,7 @@ function openGoalForm() {
     if (target) g.target = Number(target);
     const link = md.querySelector('#gf-link').value;
     if (link) g.tracker = link;
-    DB.goals.push(g); saveDB(); closeModal(); render(); openGoalDetail(g.id);
+    DB.goals.push(stamp(g)); saveDB(); closeModal(); render(); openGoalDetail(g.id);
   };
 }
 
@@ -144,7 +144,7 @@ function openGoalDetail(goalId) {
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = () => { closeModal(); render(); };
   md.querySelector('#gd-done').onclick = () => {
-    g.done = !g.done; saveDB(); closeModal(); render();
+    g.done = !g.done; stamp(g); saveDB(); closeModal(); render();
     if (g.done) { toast('🎉✨'); celebrate('goal', g.id, g.title); }
   };
   md.querySelector('#gd-del').onclick = () => {
@@ -154,39 +154,39 @@ function openGoalDetail(goalId) {
     saveDB(); closeModal(); render();
   };
   const plus = md.querySelector('#gd-plus'), minus = md.querySelector('#gd-minus');
-  if (plus) plus.onclick = () => { g.count = (g.count || 0) + 1; saveDB(); openGoalDetail(g.id); };
-  if (minus) minus.onclick = () => { g.count = Math.max(0, (g.count || 0) - 1); saveDB(); openGoalDetail(g.id); };
+  if (plus) plus.onclick = () => { g.count = (g.count || 0) + 1; stamp(g); saveDB(); openGoalDetail(g.id); };
+  if (minus) minus.onclick = () => { g.count = Math.max(0, (g.count || 0) - 1); stamp(g); saveDB(); openGoalDetail(g.id); };
 
   md.querySelectorAll('.ms-add').forEach(b => b.onclick = () => {
     const inp = md.querySelector('.ms-new[data-q="' + b.dataset.q + '"]');
     if (!inp.value.trim()) return;
     g.milestones.push({ id: uid(), quarter: Number(b.dataset.q), title: inp.value.trim(), done: false, steps: [] });
-    saveDB(); openGoalDetail(g.id);
+    stamp(g); saveDB(); openGoalDetail(g.id);
   });
   md.querySelectorAll('.ms-step-add').forEach(b => b.onclick = () => {
     const inp = md.querySelector('.ms-step-new[data-ms="' + b.dataset.ms + '"]');
     if (!inp.value.trim()) return;
     const m = g.milestones.find(x => x.id === b.dataset.ms);
     (m.steps || (m.steps = [])).push({ id: uid(), title: inp.value.trim(), done: false });
-    saveDB(); openGoalDetail(g.id);
+    stamp(g); saveDB(); openGoalDetail(g.id);
   });
   md.querySelectorAll('[data-ms]').forEach(b => {
     if (b.tagName !== 'BUTTON' || !b.classList.contains('tk-check')) return;
     b.onclick = () => {
       const m = g.milestones.find(x => x.id === b.dataset.ms);
-      m.done = !m.done; saveDB(); openGoalDetail(g.id);
+      m.done = !m.done; stamp(g); saveDB(); openGoalDetail(g.id);
     };
   });
   md.querySelectorAll('[data-msdel]').forEach(b => b.onclick = () => {
     const dm = g.milestones.find(x => x.id === b.dataset.msdel);
     if (dm) tomb('ms:' + g.title.trim().toLowerCase() + ':' + dm.title.trim().toLowerCase());
     g.milestones = g.milestones.filter(x => x.id !== b.dataset.msdel);
-    saveDB(); openGoalDetail(g.id);
+    stamp(g); saveDB(); openGoalDetail(g.id);
   });
   md.querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
     const [mid, sid] = b.dataset.st.split(':');
     const s = g.milestones.find(x => x.id === mid).steps.find(x => x.id === sid);
-    s.done = !s.done; saveDB(); openGoalDetail(g.id);
+    s.done = !s.done; stamp(g); saveDB(); openGoalDetail(g.id);
   });
   md.querySelectorAll('[data-stdel]').forEach(b => b.onclick = () => {
     const [mid, sid] = b.dataset.stdel.split(':');
@@ -194,7 +194,7 @@ function openGoalDetail(goalId) {
     const ds = m.steps.find(x => x.id === sid);
     if (ds) tomb('st:' + g.title.trim().toLowerCase() + ':' + ds.title.trim().toLowerCase());
     m.steps = m.steps.filter(x => x.id !== sid);
-    saveDB(); openGoalDetail(g.id);
+    stamp(g); saveDB(); openGoalDetail(g.id);
   });
   // tap a milestone/step title to edit it in place
   md.querySelectorAll('.editable[data-edit]').forEach(span => span.onclick = () => {
@@ -211,7 +211,7 @@ function openGoalDetail(goalId) {
     const commit = () => {
       if (saved) return; saved = true;
       const v = inp.value.trim();
-      if (v) { target.title = v; saveDB(); }
+      if (v) { target.title = v; stamp(g); saveDB(); }
       openGoalDetail(g.id);
     };
     inp.onblur = commit;
@@ -269,7 +269,7 @@ function openReview(kind) { // 'M' or 'Q'
     b.classList.add('on');
     if (st === 'done') {
       const g = DB.goals.find(x => x.id === gid);
-      if (g && !g.done) { g.done = true; saveDB(); celebrate('goal', g.id, g.title); }
+      if (g && !g.done) { g.done = true; stamp(g); saveDB(); celebrate('goal', g.id, g.title); }
     }
   });
   md.querySelector('#md-save').onclick = () => {
@@ -281,7 +281,7 @@ function openReview(kind) { // 'M' or 'Q'
       goals: goalStatus,
       savedAt: todayISO()
     };
-    saveDB(); closeModal(); render(); toast('✓ ' + t('goals.reviewdone'));
+    stampKey('rev:' + key); saveDB(); closeModal(); render(); toast('✓ ' + t('goals.reviewdone'));
   };
 }
 
@@ -339,6 +339,6 @@ function openRitual(kind) {
         thanks: md.querySelector('#rt-thanks').value
       };
     }
-    saveDB(); closeModal(); render(); toast(t('ritual.saved'));
+    stampKey('rit:' + key); saveDB(); closeModal(); render(); toast(t('ritual.saved'));
   };
 }

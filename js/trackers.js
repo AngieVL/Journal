@@ -89,10 +89,15 @@ function setTrackerValue(trk, dateIso, optId) {
     if (store[dateIso] === optId) delete store[dateIso];
     else store[dateIso] = optId;
   }
+  stampKey('trk:' + trk + ':' + dateIso);
   saveDB();
 }
 
-function clearTrackerDay(trk, dateIso) { delete DB.trackers[trk][dateIso]; saveDB(); }
+function clearTrackerDay(trk, dateIso) {
+  delete DB.trackers[trk][dateIso];
+  stampKey('trk:' + trk + ':' + dateIso);
+  saveDB();
+}
 
 // year pixel grid: rows 1-31, cols J..D
 function renderPixelGrid(trk, year, onCellTap) {

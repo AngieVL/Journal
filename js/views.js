@@ -101,7 +101,7 @@ function bindDayEvents(root) {
   root.querySelectorAll('.ev-row[data-evrow]').forEach(row => {
     const ev = DB.events.find(x => x.id === row.dataset.evrow);
     if (!ev) return;
-    row.querySelector('.ev-check').onclick = () => { ev.done = !ev.done; saveDB(); render(); };
+    row.querySelector('.ev-check').onclick = () => { ev.done = !ev.done; stamp(ev); saveDB(); render(); };
     const open = () => openEventModal(ev.date, ev.id);
     row.querySelector('.ev-title').onclick = open;
     const edit = row.querySelector('.ev-edit');
@@ -118,6 +118,7 @@ function bindToday(root) {
     const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);
     const i = log.indexOf(id);
     if (i >= 0) log.splice(i, 1); else { log.push(id); checkStreakCelebration(id); }
+    stampKey('hab:' + iso);
     saveDB(); render();
   });
   root.querySelectorAll('td.cell[data-ovtrk]').forEach(td => td.onclick = () => openPixelPicker(td.dataset.ovtrk, td.dataset.date));
@@ -135,7 +136,7 @@ function bindToday(root) {
     if (tm) tk.time = tm;
     const cat = root.querySelector('.cat-sel').value;
     if (cat) { tk.cat = cat; UI.lastCat = cat; }
-    (DB.tasks[iso] || (DB.tasks[iso] = [])).push(tk);
+    (DB.tasks[iso] || (DB.tasks[iso] = [])).push(stamp(tk));
     saveDB(); render();
   };
   root.querySelector('#btn-add-task').onclick = add;
@@ -148,7 +149,7 @@ function bindTaskEvents(root) {
     const list = DB.tasks[iso] || [];
     const tk = list.find(x => x.id === id);
     if (!tk) return;
-    row.querySelector('.tk-check').onclick = () => { tk.done = !tk.done; saveDB(); render(); };
+    row.querySelector('.tk-check').onclick = () => { tk.done = !tk.done; stamp(tk); saveDB(); render(); };
     row.querySelector('.tk-del').onclick = () => { tomb('task:' + iso + ':' + id); DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
     row.querySelector('.tk-title').onclick = () => openTaskModal(iso, id);
     row.querySelector('.tk-move').onclick = () => openTaskModal(iso, id);
@@ -190,6 +191,7 @@ function openTaskModal(iso, id) {
       (DB.tasks[nd] || (DB.tasks[nd] = [])).push(tk);
       toast('📅 → ' + fmtDate(nd));
     }
+    stamp(tk);
     saveDB(); closeModal(); render();
   };
 }
@@ -235,7 +237,7 @@ function bindWeek(root) {
       const list = DB.tasks[iso] || [];
       const undone = list.filter(x => !x.done);
       if (!undone.length) continue;
-      undone.forEach(x => tomb('task:' + iso + ':' + x.id));
+      undone.forEach(x => { tomb('task:' + iso + ':' + x.id); stamp(x); });
       DB.tasks[iso] = list.filter(x => x.done);
       (DB.tasks[today] || (DB.tasks[today] = [])).push(...undone);
       moved += undone.length;
@@ -253,14 +255,14 @@ function bindWeek(root) {
     if (tm && tm.value) tk.time = tm.value;
     const cat = root.querySelector('.wk-cat[data-date="' + iso + '"]');
     if (cat && cat.value) { tk.cat = cat.value; UI.lastCat = cat.value; }
-    (DB.tasks[iso] || (DB.tasks[iso] = [])).push(tk);
+    (DB.tasks[iso] || (DB.tasks[iso] = [])).push(stamp(tk));
     saveDB(); render();
   });
   root.querySelectorAll('.wk-new').forEach(inp => inp.onkeydown = e => {
     if (e.key === 'Enter') root.querySelector('.wk-add[data-date="' + inp.dataset.date + '"]').click();
   });
   const notes = root.querySelector('#wk-notes');
-  notes.onchange = () => { DB.weekNotes['N' + UI.week] = notes.value; saveDB(); };
+  notes.onchange = () => { DB.weekNotes['N' + UI.week] = notes.value; stampKey('wn:N' + UI.week); saveDB(); };
 }
 
 // ---------- MONTH ----------
@@ -445,7 +447,7 @@ function bindMonth(root) {
   const addHl = () => {
     if (!hlInp.value.trim()) return;
     const mk = UI.month.y + '-' + String(UI.month.m + 1).padStart(2, '0');
-    (DB.highlights[mk] || (DB.highlights[mk] = [])).push({ id: uid(), text: hlInp.value.trim() });
+    (DB.highlights[mk] || (DB.highlights[mk] = [])).push(stamp({ id: uid(), text: hlInp.value.trim() }));
     saveDB(); render();
   };
   root.querySelector('#btn-add-hl').onclick = addHl;
@@ -494,6 +496,7 @@ function openEventModal(dateIso, evId) {
     ev.date = md.querySelector('#ev-date').value;
     ev.type = md.querySelector('#ev-type').value;
     if (time) ev.time = time; else delete ev.time;
+    stamp(ev);
     if (!editing) DB.events.push(ev);
     saveDB(); closeModal(); render(); toast(t('common.saved'));
   };
@@ -825,6 +828,7 @@ function bindTrackers(root) {
       const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);
       const i = log.indexOf(id);
       if (i >= 0) log.splice(i, 1); else { log.push(id); checkStreakCelebration(id); }
+      stampKey('hab:' + iso);
       saveDB(); render();
     });
     return;
@@ -925,6 +929,7 @@ function openBodyModal(rowId) {
       const k = inp.dataset.bd;
       if (inp.value) row[k] = inp.value; else delete row[k];
     });
+    stamp(row);
     if (!editing) DB.body.push(row);
     saveDB(); closeModal(); render(); toast(t('common.saved'));
   };
