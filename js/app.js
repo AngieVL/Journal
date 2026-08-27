@@ -1,4 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
+const APP_VERSION = '24'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----
@@ -237,7 +238,7 @@ function openSettings() {
     '<div style="display:flex;gap:8px">' +
     '<button class="btn small secondary" id="btn-sync-now">🔄 ' + t('sync.now') + '</button>' +
     '<button class="btn small secondary" id="btn-restore">⬇️ ' + t('sync.restore') + '</button></div></div>';
-  html += '<div class="muted mt8 center">Mi Agenda v1 · ' + (DB.settings.name || '') + ' 💜</div>';
+  html += '<div class="muted mt8 center">Mi Agenda <b>v' + APP_VERSION + '</b> · ' + (DB.settings.name || '') + ' 💜</div>';
   openModal(html);
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = closeModal;

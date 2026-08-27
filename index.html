@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=23">
+<link rel="stylesheet" href="app.css?v=24">
 </head>
 <body>
 <div id="app">
@@ -31,19 +31,29 @@
   </div>
   <div id="toast" class="hidden"></div>
 </div>
-<script src="js/i18n.js?v=23"></script>
-<script src="js/store.js?v=23"></script>
-<script src="js/trackers.js?v=23"></script>
-<script src="js/views.js?v=23"></script>
-<script src="js/goals.js?v=23"></script>
-<script src="js/sync.js?v=23"></script>
-<script src="js/app.js?v=23"></script>
+<script src="js/i18n.js?v=24"></script>
+<script src="js/store.js?v=24"></script>
+<script src="js/trackers.js?v=24"></script>
+<script src="js/views.js?v=24"></script>
+<script src="js/goals.js?v=24"></script>
+<script src="js/sync.js?v=24"></script>
+<script src="js/app.js?v=24"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     const reg = await navigator.serviceWorker.register('sw.js');
-    reg.update(); // buscar versión nueva en cada apertura
-    // cuando una versión NUEVA toma control, recargar solo (adiós "abrir 2 veces");
+    reg.update(); // buscar versión nueva al abrir
+    // En Android la app instalada se "resume" sin recargar, así que sin esto
+    // podía quedarse semanas en una versión vieja: revisa también al volver
+    // al frente (máx. una vez cada 10 min).
+    let lastCheck = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastCheck < 600000) return;
+      lastCheck = Date.now();
+      reg.update();
+    });
+    // cuando una versión NUEVA toma control, recargar solo;
     // en la primera instalación (claim inicial) no se recarga
     let hadController = !!navigator.serviceWorker.controller;
     let reloaded = false;
