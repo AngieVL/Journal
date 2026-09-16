@@ -143,6 +143,15 @@ input.time-inp, input[type=time] { width: auto; min-width: 96px; }
 @keyframes micpulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 .btn.mic-on { background: var(--coral); color: #fff; border-color: var(--coral); animation: micpulse 1.6s ease-in-out infinite; }
 
+/* Pendientes sin fecha (bandeja de entrada) */
+.inbox-count {
+  background: var(--teal); color: #fff; border-radius: 999px;
+  font-size: 11px; font-weight: 700; padding: 1px 7px; vertical-align: 2px;
+}
+.inbox-list { max-height: 260px; overflow-y: auto; }
+.inbox-row .inbox-title { cursor: pointer; }
+.inbox-row .inbox-assign { padding: 4px 9px; font-size: 14px; }
+
 /* Filas de evento: se comportan como tareas (hora, check, tachado) */
 .ev-row { background: var(--paper); border-radius: 8px; }
 .ev-row .ev-title { cursor: pointer; font-weight: 600; }

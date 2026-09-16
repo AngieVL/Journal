@@ -17,6 +17,9 @@ function renderToday() {
           '<div class="add-row">' + catSelectHTML('cat-sel', UI.lastCat) +
           '<input type="time" id="new-task-time" class="time-inp"></div></div>';
 
+  // pendientes sin fecha
+  html += inboxCardHTML();
+
   // habits
   html += '<div class="card"><div class="section-title"><span class="st-left">🔥 ' + t('today.habits') + '</span></div><div class="habit-row">';
   DB.habits.forEach(h => {
@@ -96,6 +99,96 @@ function sortTasks(list) {
   return list.slice().sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
 }
 
+// ---------- PENDIENTES SIN FECHA (bandeja de entrada) ----------
+// Para anotar algo sin decidir todavía cuándo hacerlo; después se le
+// asigna día con un toque y pasa a ser una tarea normal.
+function inboxCardHTML() {
+  const items = DB.inbox || [];
+  let html = '<div class="card"><div class="section-title"><span class="st-left">📥 ' + t('inbox.title') +
+    (items.length ? ' <span class="inbox-count">' + items.length + '</span>' : '') + '</span></div>';
+  if (items.length) {
+    html += '<div class="inbox-list">' + items.map(it => {
+      const cat = catById(it.cat);
+      const color = cat ? ((DB.settings.theme === 'dark') ? cat.color : darker(cat.color)) : null;
+      return '<div class="task inbox-row" data-inbox="' + it.id + '"' +
+        (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
+        '<span class="tk-title inbox-title"' + (color ? ' style="color:' + color + ';font-weight:600"' : '') + '>' + esc(it.title) + '</span>' +
+        '<button class="btn small inbox-assign" title="' + t('inbox.assign') + '">📅</button>' +
+        '<button class="tk-del inbox-del">✕</button></div>';
+    }).join('') + '</div>';
+  } else {
+    html += '<div class="empty">' + t('inbox.empty') + '</div>';
+  }
+  html += '<div class="add-row"><input type="text" class="inbox-new" placeholder="' + t('inbox.ph') + '">' +
+    '<button class="btn inbox-add">+</button></div>' +
+    '<div class="add-row">' + catSelectHTML('inbox-cat', UI.lastCat) + '</div></div>';
+  return html;
+}
+
+function bindInbox(root) {
+  const add = () => {
+    const inp = root.querySelector('.inbox-new');
+    if (!inp || !inp.value.trim()) return;
+    const it = stamp({ id: uid(), title: inp.value.trim() });
+    const cat = root.querySelector('.inbox-cat');
+    if (cat && cat.value) { it.cat = cat.value; UI.lastCat = cat.value; }
+    (DB.inbox || (DB.inbox = [])).push(it);
+    saveDB(); render();
+  };
+  const btn = root.querySelector('.inbox-add');
+  if (btn) btn.onclick = add;
+  const inp = root.querySelector('.inbox-new');
+  if (inp) inp.onkeydown = e => { if (e.key === 'Enter') add(); };
+  root.querySelectorAll('.inbox-row').forEach(row => {
+    const id = row.dataset.inbox;
+    row.querySelector('.inbox-assign').onclick = () => openAssignModal(id);
+    row.querySelector('.inbox-title').onclick = () => openAssignModal(id);
+    row.querySelector('.inbox-del').onclick = () => {
+      tomb('inbox:' + id);
+      DB.inbox = (DB.inbox || []).filter(x => x.id !== id);
+      saveDB(); render();
+    };
+  });
+}
+
+// pasar un pendiente a un día concreto
+function openAssignModal(inboxId) {
+  const it = (DB.inbox || []).find(x => x.id === inboxId);
+  if (!it) return;
+  let html = '<div class="modal-title">📅 ' + t('inbox.assign') + '<button class="icon-btn" id="md-x">✕</button></div>' +
+    '<label class="fld">' + t('task.title') + '</label><input type="text" id="as-title" value="' + esc(it.title) + '">' +
+    '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('as-cat', it.cat) +
+    '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="as-date" value="' + todayISO() + '">' +
+    '<div style="display:flex;gap:8px;margin-top:8px">' +
+    '<button class="btn secondary small" data-quick="0" style="flex:1">' + t('inbox.today') + '</button>' +
+    '<button class="btn secondary small" data-quick="1" style="flex:1">' + t('inbox.tomorrow') + '</button>' +
+    '<button class="btn secondary small" data-quick="7" style="flex:1">' + t('inbox.nextweek') + '</button></div>' +
+    '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="as-time">' +
+    '<div class="modal-actions"><button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
+    '<button class="btn" id="md-save" style="flex:2">' + t('inbox.schedule') + '</button></div>';
+  openModal(html);
+  const md = document.getElementById('modal-card');
+  md.querySelector('#md-x').onclick = md.querySelector('#md-cancel').onclick = closeModal;
+  md.querySelectorAll('[data-quick]').forEach(b => b.onclick = () => {
+    md.querySelector('#as-date').value = addDays(todayISO(), Number(b.dataset.quick));
+  });
+  md.querySelector('#md-save').onclick = () => {
+    const title = md.querySelector('#as-title').value.trim();
+    const date = md.querySelector('#as-date').value;
+    if (!title || !date) return;
+    const tk = stamp({ id: uid(), title, done: false });
+    const time = md.querySelector('#as-time').value;
+    if (time) tk.time = time;
+    const cat = md.querySelector('.as-cat').value;
+    if (cat) tk.cat = cat;
+    (DB.tasks[date] || (DB.tasks[date] = [])).push(tk);
+    tomb('inbox:' + it.id);
+    DB.inbox = (DB.inbox || []).filter(x => x.id !== it.id);
+    saveDB(); closeModal(); render();
+    toast('📅 → ' + fmtDate(date));
+  };
+}
+
 // filas de evento (Hoy/Semana/Mes): check para tacharlo, ✏️ o título para editarlo
 function bindDayEvents(root) {
   root.querySelectorAll('.ev-row[data-evrow]').forEach(row => {
@@ -112,6 +205,7 @@ function bindDayEvents(root) {
 function bindToday(root) {
   const iso = todayISO();
   bindTaskEvents(root);
+  bindInbox(root);
   bindDayEvents(root);
   root.querySelectorAll('[data-habit]').forEach(btn => btn.onclick = () => {
     const id = btn.dataset.habit;
@@ -166,11 +260,22 @@ function openTaskModal(iso, id) {
     '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('cat-sel-edit', tk.cat) +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
     '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
+    '<button class="btn secondary" id="tk-toinbox" style="width:100%;margin-top:12px">📥 ' + t('task.toinbox') + '</button>' +
     '<div class="modal-actions"><button class="btn danger" id="tk-delete">🗑</button>' +
     '<button class="btn" id="md-save" style="flex:3">' + t('common.save') + '</button></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = closeModal;
+  // devolver la tarea a pendientes (sin fecha) hasta decidir cuándo
+  md.querySelector('#tk-toinbox').onclick = () => {
+    const it = stamp({ id: uid(), title: tk.title });
+    if (tk.cat) it.cat = tk.cat;
+    (DB.inbox || (DB.inbox = [])).push(it);
+    tomb('task:' + iso + ':' + id);
+    DB.tasks[iso] = list.filter(x => x.id !== id);
+    saveDB(); closeModal(); render();
+    toast('📥 ' + t('inbox.title'));
+  };
   md.querySelector('#tk-delete').onclick = () => {
     tomb('task:' + iso + ':' + id);
     DB.tasks[iso] = list.filter(x => x.id !== id);
@@ -219,6 +324,8 @@ function renderWeek() {
       '<div class="add-row">' + catSelectHTML('wk-cat', UI.lastCat).replace('<select', '<select data-date="' + iso + '"') +
       '<input type="time" class="time-inp wk-time" data-date="' + iso + '"></div></div>';
   }
+  // pendientes sin fecha: aquí es donde tiene sentido repartirlos en la semana
+  html += inboxCardHTML();
   const wkKey = 'N' + ws;
   html += '<div class="card"><div class="section-title"><span class="st-left">📝 ' + t('week.notes') + '</span></div>' +
     '<textarea id="wk-notes">' + esc(DB.weekNotes[wkKey] || '') + '</textarea></div>';
@@ -246,6 +353,7 @@ function bindWeek(root) {
   };
   bindTaskEvents(root);
   bindDayEvents(root);
+  bindInbox(root);
   root.querySelectorAll('.wk-add').forEach(btn => btn.onclick = () => {
     const iso = btn.dataset.date;
     const inp = root.querySelector('.wk-new[data-date="' + iso + '"]');

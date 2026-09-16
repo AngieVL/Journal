@@ -219,6 +219,7 @@ function mergeRemote(r) {
     });
     return localArr.filter(x => !dead(prefix + x.id));
   };
+  DB.inbox = mergeById(DB.inbox || [], r.inbox, 'inbox:');
   DB.events = mergeById(DB.events || [], r.events, 'ev:');
   DB.body = mergeById(DB.body || [], r.body, 'body:');
 
