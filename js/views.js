@@ -73,6 +73,14 @@ function todayTrackersTable() {
   return html;
 }
 
+// segunda línea con lugar y notas: solo aparece si los tiene
+function metaLineHTML(o) {
+  const bits = [];
+  if (o.place) bits.push('📍 ' + esc(o.place));
+  if (o.notes) bits.push('📝 ' + esc(o.notes.length > 45 ? o.notes.slice(0, 45) + '…' : o.notes));
+  return bits.length ? '<span class="tk-meta">' + bits.join(' · ') + '</span>' : '';
+}
+
 function taskRowHTML(iso, tk) {
   const cat = catById(tk.cat);
   // la fuente de la tarea lleva el color de su categoría (más oscuro en tema claro para que se lea)
@@ -83,7 +91,9 @@ function taskRowHTML(iso, tk) {
     (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
     '<button class="tk-check">' + (tk.done ? '✓' : '') + '</button>' +
     (tk.time ? '<span class="tk-time">🕐 ' + tk.time + '</span>' : '') +
+    '<span class="tk-main">' +
     '<span class="tk-title"' + (fontColor ? ' style="color:' + fontColor + ';font-weight:600"' : '') + '>' + esc(tk.title) + '</span>' +
+    metaLineHTML(tk) + '</span>' +
     '<button class="tk-move" title="mover">📅</button>' +
     '<button class="tk-del">✕</button></div>';
 }
@@ -112,7 +122,7 @@ function inboxCardHTML() {
       const color = cat ? ((DB.settings.theme === 'dark') ? cat.color : darker(cat.color)) : null;
       return '<div class="task inbox-row" data-inbox="' + it.id + '"' +
         (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
-        '<span class="tk-title inbox-title"' + (color ? ' style="color:' + color + ';font-weight:600"' : '') + '>' + esc(it.title) + '</span>' +
+        '<span class="tk-main inbox-title"><span class="tk-title"' + (color ? ' style="color:' + color + ';font-weight:600"' : '') + '>' + esc(it.title) + '</span>' + metaLineHTML(it) + '</span>' +
         '<button class="btn small inbox-assign" title="' + t('inbox.assign') + '">📅</button>' +
         '<button class="tk-del inbox-del">✕</button></div>';
     }).join('') + '</div>';
@@ -164,6 +174,9 @@ function openAssignModal(inboxId) {
     '<button class="btn secondary small" data-quick="1" style="flex:1">' + t('inbox.tomorrow') + '</button>' +
     '<button class="btn secondary small" data-quick="7" style="flex:1">' + t('inbox.nextweek') + '</button></div>' +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="as-time">' +
+    '<label class="fld">📍 ' + t('task.place') + '</label><input type="text" id="as-place" placeholder="' + t('task.placeph') + '" value="' + esc(it.place || '') + '">' +
+    '<label class="fld">📝 ' + t('task.notes') + '</label><textarea id="as-notes" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc(it.notes || '') + '</textarea>' +
+
     '<div class="modal-actions"><button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
     '<button class="btn" id="md-save" style="flex:2">' + t('inbox.schedule') + '</button></div>';
   openModal(html);
@@ -181,6 +194,10 @@ function openAssignModal(inboxId) {
     if (time) tk.time = time;
     const cat = md.querySelector('.as-cat').value;
     if (cat) tk.cat = cat;
+    const pl = md.querySelector('#as-place').value.trim();
+    if (pl) tk.place = pl;
+    const nt = md.querySelector('#as-notes').value.trim();
+    if (nt) tk.notes = nt;
     (DB.tasks[date] || (DB.tasks[date] = [])).push(tk);
     tomb('inbox:' + it.id);
     DB.inbox = (DB.inbox || []).filter(x => x.id !== it.id);
@@ -245,7 +262,8 @@ function bindTaskEvents(root) {
     if (!tk) return;
     row.querySelector('.tk-check').onclick = () => { tk.done = !tk.done; stamp(tk); saveDB(); render(); };
     row.querySelector('.tk-del').onclick = () => { tomb('task:' + iso + ':' + id); DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
-    row.querySelector('.tk-title').onclick = () => openTaskModal(iso, id);
+    // el bloque de texto completo (título + lugar/notas) abre el editor
+    (row.querySelector('.tk-main') || row.querySelector('.tk-title')).onclick = () => openTaskModal(iso, id);
     row.querySelector('.tk-move').onclick = () => openTaskModal(iso, id);
   });
 }
@@ -260,6 +278,8 @@ function openTaskModal(iso, id) {
     '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('cat-sel-edit', tk.cat) +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
     '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
+    '<label class="fld">📍 ' + t('task.place') + '</label><input type="text" id="tk-place" placeholder="' + t('task.placeph') + '" value="' + esc(tk.place || '') + '">' +
+    '<label class="fld">📝 ' + t('task.notes') + '</label><textarea id="tk-notes" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc(tk.notes || '') + '</textarea>' +
     '<button class="btn secondary" id="tk-toinbox" style="width:100%;margin-top:12px">📥 ' + t('task.toinbox') + '</button>' +
     '<div class="modal-actions"><button class="btn danger" id="tk-delete">🗑</button>' +
     '<button class="btn" id="md-save" style="flex:3">' + t('common.save') + '</button></div>';
@@ -270,6 +290,8 @@ function openTaskModal(iso, id) {
   md.querySelector('#tk-toinbox').onclick = () => {
     const it = stamp({ id: uid(), title: tk.title });
     if (tk.cat) it.cat = tk.cat;
+    if (tk.place) it.place = tk.place;
+    if (tk.notes) it.notes = tk.notes;
     (DB.inbox || (DB.inbox = [])).push(it);
     tomb('task:' + iso + ':' + id);
     DB.tasks[iso] = list.filter(x => x.id !== id);
@@ -289,6 +311,10 @@ function openTaskModal(iso, id) {
     if (cat) tk.cat = cat; else delete tk.cat;
     const tm = md.querySelector('#tk-time').value;
     if (tm) tk.time = tm; else delete tk.time;
+    const pl = md.querySelector('#tk-place').value.trim();
+    if (pl) tk.place = pl; else delete tk.place;
+    const nt = md.querySelector('#tk-notes').value.trim();
+    if (nt) tk.notes = nt; else delete tk.notes;
     const nd = md.querySelector('#tk-date').value;
     if (nd && nd !== iso) {
       tomb('task:' + iso + ':' + id);
@@ -383,7 +409,9 @@ function eventRowHTML(e) {
     ' style="border-left:4px solid ' + EV_COLORS[e.type] + ';padding-left:8px;margin-left:-4px">' +
     '<button class="tk-check ev-check">' + (e.done ? '✓' : '') + '</button>' +
     (e.time ? '<span class="tk-time">🕐 ' + e.time + '</span>' : '') +
-    '<span class="tk-title ev-title">' + EV_ICONS[e.type] + ' ' + esc(e.title) + '</span>' +
+    '<span class="tk-main ev-title">' +
+    '<span class="tk-title">' + EV_ICONS[e.type] + ' ' + esc(e.title) + '</span>' +
+    metaLineHTML(e) + '</span>' +
     '<button class="tk-move ev-edit" title="' + t('common.edit') + '">✏️</button></div>';
 }
 
@@ -397,7 +425,9 @@ function monthTaskRowHTML(iso, tk) {
     (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
     '<button class="tk-check">' + (tk.done ? '✓' : '') + '</button>' +
     '<span class="ev-date">' + fmtDate(iso) + (tk.time ? ' · ' + tk.time : '') + '</span>' +
+    '<span class="tk-main">' +
     '<span class="tk-title"' + (fontColor ? ' style="color:' + fontColor + ';font-weight:600"' : '') + '>' + esc(tk.title) + '</span>' +
+    metaLineHTML(tk) + '</span>' +
     '<button class="tk-move" title="' + t('common.edit') + '">✏️</button>' +
     '<button class="tk-del">✕</button></div>';
 }
@@ -463,7 +493,7 @@ function renderMonth() {
       ' style="border-left:4px solid ' + EV_COLORS[it.obj.type] + ';padding-left:8px;margin-left:-4px">' +
       '<button class="tk-check ev-check">' + (it.obj.done ? '✓' : '') + '</button>' +
       '<span class="ev-date">' + fmtDate(it.obj.date) + (it.obj.time ? ' · ' + it.obj.time : '') + '</span>' +
-      '<span class="tk-title ev-title">' + EV_ICONS[it.obj.type] + ' ' + esc(it.obj.title) + '</span>' +
+      '<span class="tk-main ev-title"><span class="tk-title">' + EV_ICONS[it.obj.type] + ' ' + esc(it.obj.title) + '</span>' + metaLineHTML(it.obj) + '</span>' +
       '<button class="tk-move ev-edit">✏️</button>' +
       '<button class="tk-del" data-ev="' + it.obj.id + '">✕</button></div>'
     : monthTaskRowHTML(it.date, it.obj)).join('')
@@ -578,6 +608,8 @@ function openEventModal(dateIso, evId) {
   html += '<label class="fld">' + t('ev.title') + '</label><input type="text" id="ev-title" value="' + (editing ? esc(editing.title) : '') + '">' +
     '<label class="fld">' + t('ev.date') + '</label><input type="date" id="ev-date" value="' + def + '">' +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="ev-time" value="' + (editing && editing.time ? editing.time : '') + '">' +
+    '<label class="fld">📍 ' + t('task.place') + '</label><input type="text" id="ev-place" placeholder="' + t('task.placeph') + '" value="' + esc((editing || {}).place || '') + '">' +
+    '<label class="fld">📝 ' + t('task.notes') + '</label><textarea id="ev-notes" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc((editing || {}).notes || '') + '</textarea>' +
     '<label class="fld">' + t('ev.type') + '</label><select id="ev-type">' +
     ['event', 'holiday', 'highlight'].map(k =>
       '<option value="' + k + '"' + (editing && editing.type === k ? ' selected' : '') + '>' + t('ev.' + k) + '</option>').join('') +
@@ -604,6 +636,10 @@ function openEventModal(dateIso, evId) {
     ev.date = md.querySelector('#ev-date').value;
     ev.type = md.querySelector('#ev-type').value;
     if (time) ev.time = time; else delete ev.time;
+    const evPl = md.querySelector('#ev-place').value.trim();
+    if (evPl) ev.place = evPl; else delete ev.place;
+    const evNt = md.querySelector('#ev-notes').value.trim();
+    if (evNt) ev.notes = evNt; else delete ev.notes;
     stamp(ev);
     if (!editing) DB.events.push(ev);
     saveDB(); closeModal(); render(); toast(t('common.saved'));
