@@ -161,43 +161,74 @@ function bindInbox(root) {
   });
 }
 
-// pasar un pendiente a un día concreto
+// bloque plegable de lugar y notas: no estorba cuando no se usa
+function detailsHTML(placeId, notesId, o) {
+  const abierto = !!(o.place || o.notes);
+  return '<details class="det"' + (abierto ? ' open' : '') + '><summary>➕ ' + t('task.details') + '</summary>' +
+    '<label class="fld">📍 ' + t('task.place') + '</label>' +
+    '<input type="text" id="' + placeId + '" placeholder="' + t('task.placeph') + '" value="' + esc(o.place || '') + '">' +
+    '<label class="fld">📝 ' + t('task.notes') + '</label>' +
+    '<textarea id="' + notesId + '" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc(o.notes || '') + '</textarea>' +
+    '</details>';
+}
+
+// editar un pendiente: se puede guardar SIN fecha, o agendarlo a un día
 function openAssignModal(inboxId) {
   const it = (DB.inbox || []).find(x => x.id === inboxId);
   if (!it) return;
-  let html = '<div class="modal-title">📅 ' + t('inbox.assign') + '<button class="icon-btn" id="md-x">✕</button></div>' +
+  let html = '<div class="modal-title">📥 ' + t('inbox.edit') + '<button class="icon-btn" id="md-x">✕</button></div>' +
     '<label class="fld">' + t('task.title') + '</label><input type="text" id="as-title" value="' + esc(it.title) + '">' +
     '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('as-cat', it.cat) +
-    '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="as-date" value="' + todayISO() + '">' +
+    detailsHTML('as-place', 'as-notes', it) +
+    '<button class="btn" id="as-keep" style="width:100%;margin-top:14px">💾 ' + t('inbox.keep') + '</button>' +
+    '<div class="det-sep">' + t('inbox.orschedule') + '</div>' +
+    // la fecha arranca VACÍA a propósito: así nunca se agenda sola para hoy
+    '<input type="date" id="as-date" value="">' +
     '<div style="display:flex;gap:8px;margin-top:8px">' +
     '<button class="btn secondary small" data-quick="0" style="flex:1">' + t('inbox.today') + '</button>' +
     '<button class="btn secondary small" data-quick="1" style="flex:1">' + t('inbox.tomorrow') + '</button>' +
     '<button class="btn secondary small" data-quick="7" style="flex:1">' + t('inbox.nextweek') + '</button></div>' +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="as-time">' +
-    '<label class="fld">📍 ' + t('task.place') + '</label><input type="text" id="as-place" placeholder="' + t('task.placeph') + '" value="' + esc(it.place || '') + '">' +
-    '<label class="fld">📝 ' + t('task.notes') + '</label><textarea id="as-notes" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc(it.notes || '') + '</textarea>' +
-
     '<div class="modal-actions"><button class="btn secondary" id="md-cancel">' + t('common.cancel') + '</button>' +
-    '<button class="btn" id="md-save" style="flex:2">' + t('inbox.schedule') + '</button></div>';
+    '<button class="btn" id="md-save" style="flex:2">📅 ' + t('inbox.schedule') + '</button></div>';
   openModal(html);
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = md.querySelector('#md-cancel').onclick = closeModal;
   md.querySelectorAll('[data-quick]').forEach(b => b.onclick = () => {
     md.querySelector('#as-date').value = addDays(todayISO(), Number(b.dataset.quick));
   });
+
+  const leer = () => ({
+    title: md.querySelector('#as-title').value.trim(),
+    cat: md.querySelector('.as-cat').value,
+    place: md.querySelector('#as-place').value.trim(),
+    notes: md.querySelector('#as-notes').value.trim()
+  });
+
+  // guardar los cambios dejándolo en pendientes
+  md.querySelector('#as-keep').onclick = () => {
+    const v = leer();
+    if (!v.title) return;
+    it.title = v.title;
+    if (v.cat) it.cat = v.cat; else delete it.cat;
+    if (v.place) it.place = v.place; else delete it.place;
+    if (v.notes) it.notes = v.notes; else delete it.notes;
+    stamp(it);
+    saveDB(); closeModal(); render(); toast(t('common.saved'));
+  };
+
+  // pasarlo a un día concreto
   md.querySelector('#md-save').onclick = () => {
-    const title = md.querySelector('#as-title').value.trim();
+    const v = leer();
     const date = md.querySelector('#as-date').value;
-    if (!title || !date) return;
-    const tk = stamp({ id: uid(), title, done: false });
+    if (!v.title) return;
+    if (!date) { toast(t('inbox.pickdate')); return; }
+    const tk = stamp({ id: uid(), title: v.title, done: false });
     const time = md.querySelector('#as-time').value;
     if (time) tk.time = time;
-    const cat = md.querySelector('.as-cat').value;
-    if (cat) tk.cat = cat;
-    const pl = md.querySelector('#as-place').value.trim();
-    if (pl) tk.place = pl;
-    const nt = md.querySelector('#as-notes').value.trim();
-    if (nt) tk.notes = nt;
+    if (v.cat) tk.cat = v.cat;
+    if (v.place) tk.place = v.place;
+    if (v.notes) tk.notes = v.notes;
     (DB.tasks[date] || (DB.tasks[date] = [])).push(tk);
     tomb('inbox:' + it.id);
     DB.inbox = (DB.inbox || []).filter(x => x.id !== it.id);
@@ -278,8 +309,7 @@ function openTaskModal(iso, id) {
     '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('cat-sel-edit', tk.cat) +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
     '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
-    '<label class="fld">📍 ' + t('task.place') + '</label><input type="text" id="tk-place" placeholder="' + t('task.placeph') + '" value="' + esc(tk.place || '') + '">' +
-    '<label class="fld">📝 ' + t('task.notes') + '</label><textarea id="tk-notes" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc(tk.notes || '') + '</textarea>' +
+    detailsHTML('tk-place', 'tk-notes', tk) +
     '<button class="btn secondary" id="tk-toinbox" style="width:100%;margin-top:12px">📥 ' + t('task.toinbox') + '</button>' +
     '<div class="modal-actions"><button class="btn danger" id="tk-delete">🗑</button>' +
     '<button class="btn" id="md-save" style="flex:3">' + t('common.save') + '</button></div>';
@@ -608,8 +638,7 @@ function openEventModal(dateIso, evId) {
   html += '<label class="fld">' + t('ev.title') + '</label><input type="text" id="ev-title" value="' + (editing ? esc(editing.title) : '') + '">' +
     '<label class="fld">' + t('ev.date') + '</label><input type="date" id="ev-date" value="' + def + '">' +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="ev-time" value="' + (editing && editing.time ? editing.time : '') + '">' +
-    '<label class="fld">📍 ' + t('task.place') + '</label><input type="text" id="ev-place" placeholder="' + t('task.placeph') + '" value="' + esc((editing || {}).place || '') + '">' +
-    '<label class="fld">📝 ' + t('task.notes') + '</label><textarea id="ev-notes" placeholder="' + t('task.notesph') + '" style="min-height:70px">' + esc((editing || {}).notes || '') + '</textarea>' +
+    detailsHTML('ev-place', 'ev-notes', editing || {}) +
     '<label class="fld">' + t('ev.type') + '</label><select id="ev-type">' +
     ['event', 'holiday', 'highlight'].map(k =>
       '<option value="' + k + '"' + (editing && editing.type === k ? ' selected' : '') + '>' + t('ev.' + k) + '</option>').join('') +
