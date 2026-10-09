@@ -6,15 +6,17 @@ function renderToday() {
   const d = new Date();
   const days = t('days.long'), months = t('months');
   let html = '<h1 class="page-title">' + days[d.getDay()] + ' ' + d.getDate() + '</h1>' +
-    '<div class="subtitle">' + months[d.getMonth()] + ' ' + d.getFullYear() + '</div>';
+    '<div class="subtitle">' + months[d.getMonth()] + ' ' + d.getFullYear() + '</div>' +
+    filterBarHTML();
 
   // tasks
   html += '<div class="card"><div class="section-title"><span class="st-left">✍️ ' + t('today.tasks') + '</span></div>';
   const items = dayItemsHTML(iso);
-  html += items || '<div class="empty">' + t('today.notask') + '</div>';
+  html += items || '<div class="empty">' + (UI.filterCat ? t('filter.none') : t('today.notask')) + '</div>';
+  html += hiddenNoteHTML(dayItemsHTML.hidden);
   html += '<div class="add-row"><input type="text" id="new-task" placeholder="' + t('today.addtask') + '">' +
           '<button class="btn" id="btn-add-task">+</button></div>' +
-          '<div class="add-row">' + catSelectHTML('cat-sel', UI.lastCat) +
+          '<div class="add-row">' + catSelectHTML('cat-sel', UI.filterCat || UI.lastCat) +
           '<input type="time" id="new-task-time" class="time-inp"></div></div>';
 
   // pendientes sin fecha
@@ -109,11 +111,44 @@ function sortTasks(list) {
   return list.slice().sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
 }
 
+// ---------- FILTRO POR CATEGORÍA (Hoy / Semana / Mes) ----------
+// Para enfocarse en un área a la vez sin que distraiga el resto del día.
+function passesFilter(o) {
+  return !UI.filterCat || o.cat === UI.filterCat;
+}
+
+function filterBarHTML() {
+  if (!(DB.categories || []).length) return '';
+  let html = '<div class="goal-cat-tabs filter-bar">' +
+    '<button class="chip' + (!UI.filterCat ? ' on' : '') + '" data-fcat="">' + t('filter.all') + '</button>';
+  DB.categories.forEach(c => {
+    const on = UI.filterCat === c.id;
+    html += '<button class="chip' + (on ? ' on' : '') + '" data-fcat="' + c.id + '"' +
+      (on ? ' style="background:' + c.color + '33;border-color:' + c.color + ';color:' + darker(c.color) + '"' : '') +
+      '>' + esc(c.name) + '</button>';
+  });
+  return html + '</div>';
+}
+
+// aviso de lo que el filtro está escondiendo, para que nada desaparezca en silencio
+function hiddenNoteHTML(n) {
+  return n ? '<div class="muted center filter-hidden">' + t('filter.hidden').replace('{n}', n) + '</div>' : '';
+}
+
+function bindFilterBar(root) {
+  root.querySelectorAll('[data-fcat]').forEach(b => b.onclick = () => {
+    UI.filterCat = b.dataset.fcat;
+    render();
+  });
+}
+
 // ---------- PENDIENTES SIN FECHA (bandeja de entrada) ----------
 // Para anotar algo sin decidir todavía cuándo hacerlo; después se le
 // asigna día con un toque y pasa a ser una tarea normal.
 function inboxCardHTML() {
-  const items = DB.inbox || [];
+  const todos = DB.inbox || [];
+  const items = todos.filter(passesFilter);          // el filtro también aplica aquí
+  const ocultos = todos.length - items.length;
   let html = '<div class="card"><div class="section-title"><span class="st-left">📥 ' + t('inbox.title') +
     (items.length ? ' <span class="inbox-count">' + items.length + '</span>' : '') + '</span></div>';
   if (items.length) {
@@ -127,11 +162,12 @@ function inboxCardHTML() {
         '<button class="tk-del inbox-del">✕</button></div>';
     }).join('') + '</div>';
   } else {
-    html += '<div class="empty">' + t('inbox.empty') + '</div>';
+    html += '<div class="empty">' + (UI.filterCat && todos.length ? t('filter.none') : t('inbox.empty')) + '</div>';
   }
+  html += hiddenNoteHTML(ocultos);
   html += '<div class="add-row"><input type="text" class="inbox-new" placeholder="' + t('inbox.ph') + '">' +
     '<button class="btn inbox-add">+</button></div>' +
-    '<div class="add-row">' + catSelectHTML('inbox-cat', UI.lastCat) + '</div></div>';
+    '<div class="add-row">' + catSelectHTML('inbox-cat', UI.filterCat || UI.lastCat) + '</div></div>';
   return html;
 }
 
@@ -254,6 +290,7 @@ function bindToday(root) {
   const iso = todayISO();
   bindTaskEvents(root);
   bindInbox(root);
+  bindFilterBar(root);
   bindDayEvents(root);
   root.querySelectorAll('[data-habit]').forEach(btn => btn.onclick = () => {
     const id = btn.dataset.habit;
@@ -367,6 +404,7 @@ function renderWeek() {
     '<div class="wk-nav"><button class="btn secondary small" id="wk-prev">‹</button>' +
     '<div><b>' + fmtDate(ws) + ' – ' + fmtDate(wkEnd, { year: true }) + '</b></div>' +
     '<button class="btn secondary small" id="wk-next">›</button></div>';
+  html += filterBarHTML();
   html += '<button class="btn secondary small" id="wk-collect" style="width:100%">📥 ' + t('week.moveundone') + '</button>';
 
   for (let i = 0; i < 7; i++) {
@@ -375,9 +413,10 @@ function renderWeek() {
     html += '<div class="card wk-day' + (iso === today ? ' today-col' : '') + '">' +
       '<div class="wd-head"><span>' + days[d.getDay()] + ' ' + d.getDate() + (iso === today ? ' · ' + t('common.today') : '') + '</span></div>';
     html += dayItemsHTML(iso);
+    html += hiddenNoteHTML(dayItemsHTML.hidden);
     html += '<div class="add-row"><input type="text" class="wk-new" data-date="' + iso + '" placeholder="' + t('week.addtask') + '">' +
       '<button class="btn small wk-add" data-date="' + iso + '">+</button></div>' +
-      '<div class="add-row">' + catSelectHTML('wk-cat', UI.lastCat).replace('<select', '<select data-date="' + iso + '"') +
+      '<div class="add-row">' + catSelectHTML('wk-cat', UI.filterCat || UI.lastCat).replace('<select', '<select data-date="' + iso + '"') +
       '<input type="time" class="time-inp wk-time" data-date="' + iso + '"></div></div>';
   }
   // pendientes sin fecha: aquí es donde tiene sentido repartirlos en la semana
@@ -410,6 +449,7 @@ function bindWeek(root) {
   bindTaskEvents(root);
   bindDayEvents(root);
   bindInbox(root);
+  bindFilterBar(root);
   root.querySelectorAll('.wk-add').forEach(btn => btn.onclick = () => {
     const iso = btn.dataset.date;
     const inp = root.querySelector('.wk-new[data-date="' + iso + '"]');
@@ -463,11 +503,14 @@ function monthTaskRowHTML(iso, tk) {
 }
 
 // lista unificada del día: eventos + tareas, ordenados por hora
+// (guarda en dayItemsHTML.hidden cuántos escondió el filtro)
 function dayItemsHTML(iso) {
   const evs = DB.events.filter(e => e.date === iso).map(e => ({ kind: 'ev', time: e.time || '', obj: e }));
   const tks = (DB.tasks[iso] || []).map(tk => ({ kind: 'tk', time: tk.time || '', obj: tk }));
   const all = evs.concat(tks).sort((a, b) => (a.time || '99:99') < (b.time || '99:99') ? -1 : 1);
-  return all.map(it => it.kind === 'ev' ? eventRowHTML(it.obj) : taskRowHTML(iso, it.obj)).join('');
+  const vis = all.filter(it => passesFilter(it.obj));
+  dayItemsHTML.hidden = all.length - vis.length;
+  return vis.map(it => it.kind === 'ev' ? eventRowHTML(it.obj) : taskRowHTML(iso, it.obj)).join('');
 }
 
 function renderMonth() {
@@ -480,6 +523,7 @@ function renderMonth() {
     '<button class="btn secondary small" id="mo-next">›</button></div>';
 
   if (UI.monthMode === 'year') return html + renderYearOverview(y);
+  html += filterBarHTML();
 
   // calendar grid (lunes primero)
   const dshort = t('days.short');
@@ -518,7 +562,10 @@ function renderMonth() {
     DB.tasks[d].forEach(tk => monthItems.push({ date: d, time: tk.time || '', kind: 'tk', obj: tk }));
   });
   monthItems.sort((a, b) => (a.date + (a.time || '99:99')) < (b.date + (b.time || '99:99')) ? -1 : 1);
-  html += monthItems.length ? monthItems.map(it => it.kind === 'ev'
+  const mesTotal = monthItems.length;
+  const monthVis = monthItems.filter(it => passesFilter(it.obj));
+  const mesOcultos = mesTotal - monthVis.length;
+  html += monthVis.length ? monthVis.map(it => it.kind === 'ev'
     ? '<div class="task ev-row' + (it.obj.done ? ' done' : '') + '" data-evrow="' + it.obj.id + '"' +
       ' style="border-left:4px solid ' + EV_COLORS[it.obj.type] + ';padding-left:8px;margin-left:-4px">' +
       '<button class="tk-check ev-check">' + (it.obj.done ? '✓' : '') + '</button>' +
@@ -527,7 +574,8 @@ function renderMonth() {
       '<button class="tk-move ev-edit">✏️</button>' +
       '<button class="tk-del" data-ev="' + it.obj.id + '">✕</button></div>'
     : monthTaskRowHTML(it.date, it.obj)).join('')
-    : '<div class="empty">' + t('month.noitems') + '</div>';
+    : '<div class="empty">' + (UI.filterCat && mesTotal ? t('filter.none') : t('month.noitems')) + '</div>';
+  html += hiddenNoteHTML(mesOcultos);
   html += '</div>';
 
   // highlights
@@ -580,6 +628,7 @@ function renderYearOverview(y) {
 }
 
 function bindMonth(root) {
+  bindFilterBar(root);
   root.querySelector('#mo-prev').onclick = () => {
     if (UI.monthMode === 'year') UI.month.y--;
     else { UI.month.m--; if (UI.month.m < 0) { UI.month.m = 11; UI.month.y--; } }

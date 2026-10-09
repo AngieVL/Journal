@@ -1,5 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
-const APP_VERSION = '29'; // debe coincidir con ?v= de index.html y sw.js
+const APP_VERSION = '30'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----
@@ -22,7 +22,8 @@ const UI = {
   trkYear: curYear(),
   habitMonth: { y: new Date().getFullYear(), m: new Date().getMonth() },
   goalYear: curYear(),
-  goalCat: 'all'
+  goalCat: 'all',
+  filterCat: ''   // filtro por categoría en Hoy/Semana/Mes ('' = ver todo)
 };
 
 function render() {
