@@ -221,6 +221,8 @@ function mergeRemote(r) {
   };
   DB.inbox = mergeById(DB.inbox || [], r.inbox, 'inbox:');
   DB.recurring = mergeById(DB.recurring || [], r.recurring, 'rec:');
+  DB.wins = mergeById(DB.wins || [], r.wins, 'win:');
+  DB.wins.sort(function (a, b) { return (a.date < b.date) ? 1 : -1; });   // recientes primero
   DB.events = mergeById(DB.events || [], r.events, 'ev:');
   DB.body = mergeById(DB.body || [], r.body, 'body:');
 
@@ -238,6 +240,9 @@ function mergeRemote(r) {
   for (const k in (r.weekNotes || {})) if (!DB.weekNotes[k] || rNewer('wn:' + k)) DB.weekNotes[k] = r.weekNotes[k];
   for (const k in (r.reviews || {})) if (!DB.reviews[k] || rNewer('rev:' + k)) DB.reviews[k] = r.reviews[k];
   for (const k in (r.ritual || {})) if (!DB.ritual[k] || rNewer('rit:' + k)) DB.ritual[k] = r.ritual[k];
+  // modo día suave: solo importa el de hoy, y manda el cambio más reciente
+  if (r.badDay && r.badDay.date && rNewer('badday:' + r.badDay.date)) DB.badDay = r.badDay;
+  else if (DB.badDay && r.badDay === null && rNewer('badday:' + DB.badDay.date)) DB.badDay = null;
   DB.celebrated = Object.assign({}, r.celebrated || {}, DB.celebrated || {});
   // conserva la marca más nueva de cada clave
   Object.keys(rmt).forEach(k => { if ((rmt[k] || 0) > (lmt[k] || 0)) lmt[k] = rmt[k]; });

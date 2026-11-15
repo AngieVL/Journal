@@ -2,6 +2,7 @@
 
 // ---------- TODAY ----------
 function renderToday() {
+  if (esDiaMalo()) return renderBadDay();   // dia gris: solo una cosa
   const iso = todayISO();
   const d = new Date();
   const days = t('days.long'), months = t('months');
@@ -39,6 +40,8 @@ function renderToday() {
   const pred = periodPrediction();
   if (pred) html += '<div class="muted mt8">🩸 ' + t('trk.predict') + ': <b>' + fmtDate(pred.next) + '</b> (' + t('trk.predictdays') + ' ' + pred.cycle + 'd)</div>';
   html += '</div>';
+  // salida de emergencia para los dias que no dan
+  html += '<button class="btn ghost small" id="bad-day-link" style="width:100%;margin-top:4px">🌧️ ' + t('bad.link') + '</button>';
   return html;
 }
 
@@ -287,6 +290,7 @@ function bindDayEvents(root) {
 }
 
 function bindToday(root) {
+  if (esDiaMalo()) return bindBadDay(root);
   const iso = todayISO();
   bindTaskEvents(root);
   bindInbox(root);
@@ -301,6 +305,8 @@ function bindToday(root) {
     saveDB(); render();
   });
   root.querySelectorAll('td.cell[data-ovtrk]').forEach(td => td.onclick = () => openPixelPicker(td.dataset.ovtrk, td.dataset.date));
+  const bd = root.querySelector('#bad-day-link');
+  if (bd) bd.onclick = openBadDayModal;
   // auto-scroll the tracker table to today's column
   const wrap = root.querySelector('#today-trk-wrap');
   if (wrap) {
@@ -328,11 +334,16 @@ function bindTaskEvents(root) {
     const list = DB.tasks[iso] || [];
     const tk = list.find(x => x.id === id);
     if (!tk) return;
-    row.querySelector('.tk-check').onclick = () => { tk.done = !tk.done; stamp(tk); saveDB(); render(); };
-    row.querySelector('.tk-del').onclick = () => { tomb('task:' + iso + ':' + id); DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
+    // no todas las filas traen todos los botones (la del modo día suave es mínima)
+    const check = row.querySelector('.tk-check');
+    if (check) check.onclick = () => { tk.done = !tk.done; stamp(tk); saveDB(); render(); };
+    const del = row.querySelector('.tk-del');
+    if (del) del.onclick = () => { tomb('task:' + iso + ':' + id); DB.tasks[iso] = list.filter(x => x.id !== id); saveDB(); render(); };
     // el bloque de texto completo (título + lugar/notas) abre el editor
-    (row.querySelector('.tk-main') || row.querySelector('.tk-title')).onclick = () => openTaskModal(iso, id);
-    row.querySelector('.tk-move').onclick = () => openTaskModal(iso, id);
+    const texto = row.querySelector('.tk-main') || row.querySelector('.tk-title');
+    if (texto) texto.onclick = () => openTaskModal(iso, id);
+    const mover = row.querySelector('.tk-move');
+    if (mover) mover.onclick = () => openTaskModal(iso, id);
   });
 }
 

@@ -22,6 +22,8 @@ const DEFAULT_DB = {
   tasks: {},           // 'YYYY-MM-DD': [{id,title,done}]
   inbox: [],           // pendientes sin fecha, en espera de que ella les asigne día
   recurring: [],       // rutinas que se agendan solas: {id,title,cat,time,place,notes,rule,mt}
+  wins: [],            // muro de logros: evidencia para los días grises {id,date,text,auto,mt}
+  badDay: null,        // modo día suave: {date:'YYYY-MM-DD', taskId:'id'|null}
   weekNotes: {},       // 'YYYY-Www': 'text'
   events: [],          // {id, date:'YYYY-MM-DD', title, type:'event'|'holiday'|'highlight'}
   highlights: {},      // 'YYYY-MM': [{id,text}]

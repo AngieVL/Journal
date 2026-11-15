@@ -50,6 +50,7 @@ function renderGoals() {
       (g.done ? '<span>🎉</span>' : '') + '</div></div>';
   });
   html += '<button class="btn" id="goal-add" style="width:100%;margin-top:10px">+ ' + t('goals.add') + '</button>';
+  html += winsCardHTML();   // evidencia de lo que ya logro
   return html;
 }
 
@@ -61,6 +62,7 @@ function reviewLabel(k) {
 }
 
 function bindGoals(root) {
+  bindWins(root);
   root.querySelector('#gy-prev').onclick = () => { UI.goalYear--; render(); };
   root.querySelector('#gy-next').onclick = () => { UI.goalYear++; render(); };
   root.querySelectorAll('[data-gcat]').forEach(b => b.onclick = () => { UI.goalCat = b.dataset.gcat; render(); });
@@ -145,7 +147,7 @@ function openGoalDetail(goalId) {
   md.querySelector('#md-x').onclick = () => { closeModal(); render(); };
   md.querySelector('#gd-done').onclick = () => {
     g.done = !g.done; stamp(g); saveDB(); closeModal(); render();
-    if (g.done) { toast('🎉✨'); celebrate('goal', g.id, g.title); }
+    if (g.done) { toast('🎉✨'); celebrate('goal', g.id, g.title); addWin(t('wins.goal') + ' ' + g.title, true); }
   };
   md.querySelector('#gd-del').onclick = () => {
     if (!confirm(t('goals.deleteconfirm'))) return;
