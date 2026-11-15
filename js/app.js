@@ -1,5 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
-const APP_VERSION = '30'; // debe coincidir con ?v= de index.html y sw.js
+const APP_VERSION = '31'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----
@@ -70,6 +70,9 @@ document.getElementById('btn-settings').onclick = openSettings;
 
 // ---- AI planner: "vuélcame el caos" ----
 document.getElementById('btn-plan').onclick = openPlanner;
+
+// ---- rutinas que se agendan solas ----
+document.getElementById('btn-routines').onclick = openRoutines;
 
 function openPlanner() {
   let html = '<div class="modal-title">✨ ' + t('plan.title') + '<button class="icon-btn" id="md-x">✕</button></div>' +
@@ -310,13 +313,14 @@ function openSettings() {
   };
 }
 
+materializeRecurring();   // siembra las rutinas pendientes del próximo par de meses
 render();
 
 // full sync cycle shortly after opening: pull cloud → merge → push
 setTimeout(async () => {
   if (typeof fullSync !== 'function') return;
   const ok = await fullSync();
-  if (ok) render(); // reflejar lo que llegó de otros dispositivos
+  if (ok) { materializeRecurring(); render(); } // rutinas que llegaron del otro dispositivo
 }, 2000);
 
 // y cada vez que la app vuelve al frente (en Android la PWA se "resume",
@@ -326,6 +330,8 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
   if (Date.now() - lastFgSync < 45000) return; // máx una vez cada 45s
   lastFgSync = Date.now();
+  materializeRecurring();   // al volver, siembra lo que entró en la ventana
   const ok = await fullSync();
-  if (ok) render();
+  if (ok) materializeRecurring();
+  render();
 });

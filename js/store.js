@@ -21,6 +21,7 @@ const DEFAULT_DB = {
   habitLog: {},        // 'YYYY-MM-DD': ['h1','h2']
   tasks: {},           // 'YYYY-MM-DD': [{id,title,done}]
   inbox: [],           // pendientes sin fecha, en espera de que ella les asigne día
+  recurring: [],       // rutinas que se agendan solas: {id,title,cat,time,place,notes,rule,mt}
   weekNotes: {},       // 'YYYY-Www': 'text'
   events: [],          // {id, date:'YYYY-MM-DD', title, type:'event'|'holiday'|'highlight'}
   highlights: {},      // 'YYYY-MM': [{id,text}]
