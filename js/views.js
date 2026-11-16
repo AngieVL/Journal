@@ -204,38 +204,116 @@ function bindInbox(root) {
 }
 
 // ---------- TRÁFICO DE LA SEMANA ----------
-// Donde define proyecto por proyecto qué se trabaja esa semana.
-// Mismo texto en Hoy y en Semana: una sola nota por semana (clave 'N'+lunes).
+// Proyecto por proyecto, qué se trabaja esa semana. Es una lista que se tacha,
+// ordenada por prioridad: el número 1 es lo más importante. Una sola lista por
+// semana (clave 'N'+lunes), igual en Hoy y en Semana.
 function traficoKey(ws) { return 'N' + ws; }
+
+function traficoLista(ws) {
+  const arr = (DB.trafico || {})[traficoKey(ws)] || [];
+  // el orden vive en p (no en la posición del arreglo) para que sobreviva la sincronización
+  return arr.slice().sort((a, b) => (a.p || 0) - (b.p || 0));
+}
+
+function traficoRowHTML(ws, it, num, primero, ultimo) {
+  const cat = catById(it.cat);
+  const color = cat ? ((DB.settings.theme === 'dark') ? cat.color : darker(cat.color)) : null;
+  return '<div class="task tf-row' + (it.done ? ' done' : '') + '" data-tf-row="' + it.id + '" data-tf-ws="' + ws + '"' +
+    (cat ? ' style="border-left:4px solid ' + cat.color + ';padding-left:8px;margin-left:-4px"' : '') + '>' +
+    '<button class="tk-check tf-check">' + (it.done ? '✓' : '') + '</button>' +
+    (num ? '<span class="tf-num' + (primero ? ' tf-top' : '') + '">' + num + '</span>'
+         : '<span class="tf-num tf-num-done">✓</span>') +
+    '<span class="tk-main tf-main"><span class="tk-title"' +
+    (color && !it.done ? ' style="color:' + color + ';font-weight:600"' : '') + '>' + esc(it.title) + '</span></span>' +
+    (it.done ? '' :
+      '<button class="tf-mv tf-up' + (primero ? ' tf-off' : '') + '" title="' + esc(t('trafico.up')) + '">▲</button>' +
+      '<button class="tf-mv tf-down' + (ultimo ? ' tf-off' : '') + '" title="' + esc(t('trafico.down')) + '">▼</button>') +
+    '<button class="tk-del tf-del">✕</button></div>';
+}
 
 function traficoCardHTML(ws, opts) {
   opts = opts || {};
-  const hoyWs = weekStartISO(todayISO());
-  const esEstaSemana = ws === hoyWs;
-  const txt = (DB.weekNotes || {})[traficoKey(ws)] || '';
-  return '<div class="card trafico-card"><div class="section-title">' +
+  const esEstaSemana = ws === weekStartISO(todayISO());
+  const todos = traficoLista(ws);
+  // el número es la prioridad real: no cambia aunque el filtro esconda cosas
+  const pendTodas = todos.filter(x => !x.done).map((x, i) => ({ x: x, n: i + 1, fin: false }));
+  const hechTodas = todos.filter(x => x.done).map(x => ({ x: x, n: 0, fin: true }));
+  const pend = pendTodas.filter(o => passesFilter(o.x));
+  const hechos = hechTodas.filter(o => passesFilter(o.x));
+  const ocultos = (pendTodas.length - pend.length) + (hechTodas.length - hechos.length);
+
+  let html = '<div class="card trafico-card"><div class="section-title">' +
     '<span class="st-left">🚦 ' + t('trafico.title') +
     (esEstaSemana && opts.badge ? ' <span class="tf-badge">' + t('trafico.thisweek') + '</span>' : '') +
+    (todos.length ? ' <span class="tf-count">' + hechTodas.length + '/' + todos.length + '</span>' : '') +
     '</span>' +
     (opts.link ? '<button class="btn secondary small tf-go">' + t('trafico.open') + ' ›</button>' : '') +
-    '</div>' +
-    '<textarea class="tf-notes" data-tf="' + ws + '" placeholder="' + esc(t('trafico.ph')) + '">' + esc(txt) + '</textarea></div>';
+    '</div>';
+
+  if (pend.length || hechos.length) {
+    html += '<div class="tf-list">' +
+      pend.map(o => traficoRowHTML(ws, o.x, o.n, o.n === 1, o.n === pendTodas.length)).join('') +
+      hechos.map(o => traficoRowHTML(ws, o.x, 0)).join('') + '</div>';
+  } else {
+    html += '<div class="empty">' + (UI.filterCat && todos.length ? t('filter.none') : t('trafico.empty')) + '</div>';
+  }
+  html += hiddenNoteHTML(ocultos);
+
+  html += '<div class="add-row"><input type="text" class="tf-new" data-tf="' + ws + '" placeholder="' + esc(t('trafico.ph')) + '">' +
+    '<button class="btn tf-add" data-tf="' + ws + '">+</button></div>' +
+    '<div class="add-row">' + catSelectHTML('tf-cat', UI.filterCat || UI.lastCat).replace('<select', '<select data-tf="' + ws + '"') + '</div></div>';
+  return html;
+}
+
+function traficoMover(ws, id, dir) {
+  const pend = traficoLista(ws).filter(x => !x.done);
+  const i = pend.findIndex(x => x.id === id);
+  const otro = pend[i + dir];
+  if (i < 0 || !otro) return;                     // ya está en la punta
+  const yo = pend[i], pYo = yo.p || 0, pOtro = otro.p || 0;
+  yo.p = pOtro; otro.p = pYo;
+  stamp(yo); stamp(otro);
+  saveDB(); render();
 }
 
 function bindTrafico(root) {
-  root.querySelectorAll('.tf-notes').forEach(ta => {
-    ta.onchange = () => {
-      const ws = ta.dataset.tf;
-      const k = traficoKey(ws);
-      (DB.weekNotes || (DB.weekNotes = {}))[k] = ta.value;
-      stampKey('wn:' + k);
-      saveDB();
-    };
+  const agregar = (ws) => {
+    const inp = root.querySelector('.tf-new[data-tf="' + ws + '"]');
+    if (!inp || !inp.value.trim()) return;
+    const k = traficoKey(ws);
+    const arr = (DB.trafico || (DB.trafico = {}))[k] || (DB.trafico[k] = []);
+    const maxP = arr.reduce((m, x) => Math.max(m, x.p || 0), 0);
+    const it = stamp({ id: uid(), title: inp.value.trim(), done: false, p: maxP + 1 });
+    const sel = root.querySelector('.tf-cat[data-tf="' + ws + '"]');
+    if (sel && sel.value) { it.cat = sel.value; UI.lastCat = sel.value; }
+    arr.push(it);
+    stampKey('tf:' + k);
+    saveDB(); render();
+  };
+  root.querySelectorAll('.tf-add').forEach(b => b.onclick = () => agregar(b.dataset.tf));
+  root.querySelectorAll('.tf-new').forEach(inp => inp.onkeydown = e => {
+    if (e.key === 'Enter') agregar(inp.dataset.tf);
   });
+
+  root.querySelectorAll('.tf-row').forEach(row => {
+    const ws = row.dataset.tfWs, id = row.dataset.tfRow;
+    const it = (DB.trafico[traficoKey(ws)] || []).find(x => x.id === id);
+    if (!it) return;
+    row.querySelector('.tf-check').onclick = () => { it.done = !it.done; stamp(it); saveDB(); render(); };
+    row.querySelector('.tf-del').onclick = () => {
+      const k = traficoKey(ws);
+      tomb('tf:' + k + ':' + id);
+      DB.trafico[k] = (DB.trafico[k] || []).filter(x => x.id !== id);
+      stampKey('tf:' + k);
+      saveDB(); render();
+    };
+    const up = row.querySelector('.tf-up'), dn = row.querySelector('.tf-down');
+    if (up) up.onclick = () => traficoMover(ws, id, -1);
+    if (dn) dn.onclick = () => traficoMover(ws, id, 1);
+  });
+
   const go = root.querySelector('.tf-go');
   if (go) go.onclick = () => {
-    const ta = root.querySelector('.tf-notes');
-    if (ta) ta.onchange();                       // no perder lo que acabó de escribir
     UI.week = weekStartISO(todayISO());
     UI.tab = 'week';
     render();

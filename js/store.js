@@ -24,7 +24,8 @@ const DEFAULT_DB = {
   recurring: [],       // rutinas que se agendan solas: {id,title,cat,time,place,notes,rule,mt}
   wins: [],            // muro de logros: evidencia para los días grises {id,date,text,auto,mt}
   badDay: null,        // modo día suave: {date:'YYYY-MM-DD', taskId:'id'|null}
-  weekNotes: {},       // 'YYYY-Www': 'text'
+  weekNotes: {},       // 'N'+lunes: 'text'  (viejo tráfico de texto libre; se migra a trafico)
+  trafico: {},         // 'N'+lunes: [{id,title,done,cat,mt}] en orden de prioridad (1 = más importante)
   events: [],          // {id, date:'YYYY-MM-DD', title, type:'event'|'holiday'|'highlight'}
   highlights: {},      // 'YYYY-MM': [{id,text}]
   goals: [],           // {id, year, category, title, done, target, tracker, count, milestones:[{id,quarter,title,done,steps:[{id,title,done}]}]}
@@ -69,7 +70,28 @@ function loadDB() {
     DB.settings.plan2026 = true;
     saveDB();
   }
+  migrarTrafico();
   window.DB = DB;
+}
+
+// El tráfico era una nota de texto; ahora es una lista de cositas tachables.
+// Cada línea que ya había escrito se vuelve un ítem, en el mismo orden.
+function migrarTrafico() {
+  let cambio = false;
+  for (const k in (DB.weekNotes || {})) {
+    const txt = DB.weekNotes[k];
+    if (typeof txt !== 'string' || !txt.trim()) { delete DB.weekNotes[k]; cambio = true; continue; }
+    // ya migrada (o llegó de un dispositivo viejo en la sincronización): se suelta el texto
+    if ((DB.trafico[k] || []).length) { delete DB.weekNotes[k]; cambio = true; continue; }
+    DB.trafico[k] = txt.split('\n')
+      .map(l => l.replace(/^\s*[-*•·]\s*/, '').trim())  // viñetas escritas a mano
+      .filter(l => l)
+      .map((l, i) => stamp({ id: uid(), title: l, done: false, p: i + 1 }));
+    delete DB.weekNotes[k];
+    stampKey('tf:' + k);
+    cambio = true;
+  }
+  if (cambio) saveDB();
 }
 
 // ---- 2026 goals transcribed from Angie's physical bullet journal ----

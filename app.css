@@ -195,7 +195,28 @@ details.det[open] > summary { color: var(--ink); margin-bottom: 2px; }
 }
 /* Tráfico de la semana: la nota donde define qué se trabaja */
 .trafico-card .section-title { flex-wrap: wrap; row-gap: 4px; }
-.trafico-card .tf-notes { min-height: 110px; line-height: 1.5; }
+.tf-count {
+  background: var(--line); color: var(--ink-soft); border-radius: 999px;
+  font-size: 11px; font-weight: 700; padding: 1px 7px; vertical-align: 2px; letter-spacing: 0;
+}
+/* el numerito de prioridad: 1 es lo más importante de la semana */
+.tf-num {
+  min-width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; letter-spacing: 0;
+  background: var(--teal); color: #fff;
+}
+.tf-num.tf-top { box-shadow: 0 0 0 3px var(--line); }
+.tf-num-done { background: var(--line); color: var(--ink-soft); font-weight: 600; }
+.tf-row.done .tk-title { text-decoration: line-through; color: var(--ink-soft); }
+.tf-row .tf-main { flex: 1; min-width: 0; }
+.tf-mv {
+  border: none; background: none; cursor: pointer;
+  color: var(--ink-soft); font-size: 11px; line-height: 1;
+  padding: 5px 3px; border-radius: 6px;
+}
+.tf-mv:hover { background: var(--line); color: var(--ink); }
+.tf-mv.tf-off { opacity: .25; pointer-events: none; }
 .trafico-card .tf-badge {
   background: var(--line); color: var(--ink-soft); border-radius: 999px;
   font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px;

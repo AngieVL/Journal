@@ -236,6 +236,12 @@ function mergeRemote(r) {
     DB.highlights[mk] = mergeById(DB.highlights[mk] || (DB.highlights[mk] = []), r.highlights[mk], 'hl:' + mk + ':');
   }
 
+  // --- tráfico de la semana: lista por id; el orden viaja en p de cada ítem ---
+  DB.trafico = DB.trafico || {};
+  for (const k in (r.trafico || {})) {
+    DB.trafico[k] = mergeById(DB.trafico[k] || (DB.trafico[k] = []), r.trafico[k], 'tf:' + k + ':');
+  }
+
   // --- notas, revisiones, rituales: falta localmente o se editó después allá ---
   for (const k in (r.weekNotes || {})) if (!DB.weekNotes[k] || rNewer('wn:' + k)) DB.weekNotes[k] = r.weekNotes[k];
   for (const k in (r.reviews || {})) if (!DB.reviews[k] || rNewer('rev:' + k)) DB.reviews[k] = r.reviews[k];
@@ -243,6 +249,7 @@ function mergeRemote(r) {
   // modo día suave: solo importa el de hoy, y manda el cambio más reciente
   if (r.badDay && r.badDay.date && rNewer('badday:' + r.badDay.date)) DB.badDay = r.badDay;
   else if (DB.badDay && r.badDay === null && rNewer('badday:' + DB.badDay.date)) DB.badDay = null;
+  migrarTrafico();                            // si el otro dispositivo aún manda el tráfico como texto
   DB.celebrated = Object.assign({}, r.celebrated || {}, DB.celebrated || {});
   // conserva la marca más nueva de cada clave
   Object.keys(rmt).forEach(k => { if ((rmt[k] || 0) > (lmt[k] || 0)) lmt[k] = rmt[k]; });
