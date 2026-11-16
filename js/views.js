@@ -20,6 +20,9 @@ function renderToday() {
           '<div class="add-row">' + catSelectHTML('cat-sel', UI.filterCat || UI.lastCat) +
           '<input type="time" id="new-task-time" class="time-inp"></div></div>';
 
+  // tráfico de la semana: lo que definió que se trabaja, visible todos los días
+  html += traficoCardHTML(weekStartISO(iso), { badge: true, link: true });
+
   // pendientes sin fecha
   html += inboxCardHTML();
 
@@ -200,6 +203,45 @@ function bindInbox(root) {
   });
 }
 
+// ---------- TRÁFICO DE LA SEMANA ----------
+// Donde define proyecto por proyecto qué se trabaja esa semana.
+// Mismo texto en Hoy y en Semana: una sola nota por semana (clave 'N'+lunes).
+function traficoKey(ws) { return 'N' + ws; }
+
+function traficoCardHTML(ws, opts) {
+  opts = opts || {};
+  const hoyWs = weekStartISO(todayISO());
+  const esEstaSemana = ws === hoyWs;
+  const txt = (DB.weekNotes || {})[traficoKey(ws)] || '';
+  return '<div class="card trafico-card"><div class="section-title">' +
+    '<span class="st-left">🚦 ' + t('trafico.title') +
+    (esEstaSemana && opts.badge ? ' <span class="tf-badge">' + t('trafico.thisweek') + '</span>' : '') +
+    '</span>' +
+    (opts.link ? '<button class="btn secondary small tf-go">' + t('trafico.open') + ' ›</button>' : '') +
+    '</div>' +
+    '<textarea class="tf-notes" data-tf="' + ws + '" placeholder="' + esc(t('trafico.ph')) + '">' + esc(txt) + '</textarea></div>';
+}
+
+function bindTrafico(root) {
+  root.querySelectorAll('.tf-notes').forEach(ta => {
+    ta.onchange = () => {
+      const ws = ta.dataset.tf;
+      const k = traficoKey(ws);
+      (DB.weekNotes || (DB.weekNotes = {}))[k] = ta.value;
+      stampKey('wn:' + k);
+      saveDB();
+    };
+  });
+  const go = root.querySelector('.tf-go');
+  if (go) go.onclick = () => {
+    const ta = root.querySelector('.tf-notes');
+    if (ta) ta.onchange();                       // no perder lo que acabó de escribir
+    UI.week = weekStartISO(todayISO());
+    UI.tab = 'week';
+    render();
+  };
+}
+
 // bloque plegable de lugar y notas: no estorba cuando no se usa
 function detailsHTML(placeId, notesId, o) {
   const abierto = !!(o.place || o.notes);
@@ -296,6 +338,7 @@ function bindToday(root) {
   bindInbox(root);
   bindFilterBar(root);
   bindDayEvents(root);
+  bindTrafico(root);
   root.querySelectorAll('[data-habit]').forEach(btn => btn.onclick = () => {
     const id = btn.dataset.habit;
     const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);
@@ -416,6 +459,8 @@ function renderWeek() {
     '<div><b>' + fmtDate(ws) + ' – ' + fmtDate(wkEnd, { year: true }) + '</b></div>' +
     '<button class="btn secondary small" id="wk-next">›</button></div>';
   html += filterBarHTML();
+  // el tráfico va ARRIBA: primero se define la semana, después se mira día por día
+  html += traficoCardHTML(ws, { badge: true });
   html += '<button class="btn secondary small" id="wk-collect" style="width:100%">📥 ' + t('week.moveundone') + '</button>';
 
   for (let i = 0; i < 7; i++) {
@@ -432,9 +477,6 @@ function renderWeek() {
   }
   // pendientes sin fecha: aquí es donde tiene sentido repartirlos en la semana
   html += inboxCardHTML();
-  const wkKey = 'N' + ws;
-  html += '<div class="card"><div class="section-title"><span class="st-left">📝 ' + t('week.notes') + '</span></div>' +
-    '<textarea id="wk-notes">' + esc(DB.weekNotes[wkKey] || '') + '</textarea></div>';
   return html;
 }
 
@@ -476,8 +518,7 @@ function bindWeek(root) {
   root.querySelectorAll('.wk-new').forEach(inp => inp.onkeydown = e => {
     if (e.key === 'Enter') root.querySelector('.wk-add[data-date="' + inp.dataset.date + '"]').click();
   });
-  const notes = root.querySelector('#wk-notes');
-  notes.onchange = () => { DB.weekNotes['N' + UI.week] = notes.value; stampKey('wn:N' + UI.week); saveDB(); };
+  bindTrafico(root);
 }
 
 // ---------- MONTH ----------
