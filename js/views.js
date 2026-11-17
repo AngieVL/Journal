@@ -85,10 +85,16 @@ function todayTrackersTable() {
 }
 
 // segunda línea con lugar y notas: solo aparece si los tiene
+const MV_AVISO = 3;    // desde cuántos aplazamientos se muestra la marquita
+
 function metaLineHTML(o) {
   const bits = [];
   if (o.place) bits.push('📍 ' + esc(o.place));
   if (o.notes) bits.push('📝 ' + esc(o.notes.length > 45 ? o.notes.slice(0, 45) + '…' : o.notes));
+  // no es un regaño: es el dato de que algo lleva rodando y toca decidir qué hacer con ello
+  if (!o.done && (o.mv || 0) >= MV_AVISO) {
+    bits.push('<span class="tk-mv" title="' + esc(t('mv.title')) + '">↻' + o.mv + '</span>');
+  }
   return bits.length ? '<span class="tk-meta">' + bits.join(' · ') + '</span>' : '';
 }
 
@@ -493,6 +499,8 @@ function openTaskModal(iso, id) {
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
     '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
     detailsHTML('tk-place', 'tk-notes', tk) +
+    ((tk.mv || 0) >= MV_AVISO && !tk.done
+      ? '<div class="mv-note">↻ ' + t('mv.note').replace('{n}', tk.mv) + '</div>' : '') +
     '<button class="btn secondary" id="tk-toinbox" style="width:100%;margin-top:12px">📥 ' + t('task.toinbox') + '</button>' +
     '<div class="modal-actions"><button class="btn danger" id="tk-delete">🗑</button>' +
     '<button class="btn" id="md-save" style="flex:3">' + t('common.save') + '</button></div>';
@@ -505,6 +513,8 @@ function openTaskModal(iso, id) {
     if (tk.cat) it.cat = tk.cat;
     if (tk.place) it.place = tk.place;
     if (tk.notes) it.notes = tk.notes;
+    if (tk.w) it.w = tk.w;
+    if (tk.mv) it.mv = tk.mv;        // el historial de aplazamientos la acompaña
     (DB.inbox || (DB.inbox = [])).push(it);
     tomb('task:' + iso + ':' + id);
     DB.tasks[iso] = list.filter(x => x.id !== id);
@@ -532,6 +542,8 @@ function openTaskModal(iso, id) {
     if (nt) tk.notes = nt; else delete tk.notes;
     const nd = md.querySelector('#tk-date').value;
     if (nd && nd !== iso) {
+      // aplazar hacia adelante deja rastro; adelantar o reagendar hacia atrás no
+      if (nd > iso && !tk.done) tk.mv = (tk.mv || 0) + 1;
       tomb('task:' + iso + ':' + id);
       DB.tasks[iso] = list.filter(x => x.id !== id);
       (DB.tasks[nd] || (DB.tasks[nd] = [])).push(tk);
@@ -586,7 +598,7 @@ function bindWeek(root) {
       const list = DB.tasks[iso] || [];
       const undone = list.filter(x => !x.done);
       if (!undone.length) continue;
-      undone.forEach(x => { tomb('task:' + iso + ':' + x.id); stamp(x); });
+      undone.forEach(x => { tomb('task:' + iso + ':' + x.id); x.mv = (x.mv || 0) + 1; stamp(x); });
       DB.tasks[iso] = list.filter(x => x.done);
       (DB.tasks[today] || (DB.tasks[today] = [])).push(...undone);
       moved += undone.length;
