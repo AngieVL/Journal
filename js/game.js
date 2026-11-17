@@ -56,6 +56,9 @@ function ensureGame() {
   // Arranca el lunes de la semana en que lo estrena: así cuenta la semana
   // completa (el tráfico suma en el lunes de su semana) y no empieza a medias.
   if (!g.desde) { g.desde = weekStartISO(todayISO()); }
+  // v35 lo fijaba en "hoy" y no en el lunes: la barra contaba desde el lunes y
+  // las monedas desde el martes, y los dos números no cuadraban.
+  else if (g.desde !== weekStartISO(g.desde)) { g.desde = weekStartISO(g.desde); saveDB(); }
   if (!g.seeded) { g.rewards = seedRewards(); g.seeded = true; saveDB(); }
   // La primera meta (300) salió a ojo y le quedó corta: una semana suya llegaba
   // a eso sin cerrar ninguna prioridad. Se sube una vez; de ahí en adelante la
@@ -88,53 +91,54 @@ function metaSugerida() {
 let _ptsCache = null;
 function invalidarPuntos() { _ptsCache = null; }
 
+const FUENTES = ['tarea', 'trafico', 'habito', 'gym', 'hito'];
+
 function recolectar() {
   if (_ptsCache) return _ptsCache;
   const porDia = {};        // 'YYYY-MM-DD' -> puntos de ese día
-  const porCat = {};        // catId -> xp de por vida
-  let constancia = 0;       // hábitos + gym: la habilidad de sostener
-  let total = 0;
+  const porFuente = {};     // 'YYYY-MM-DD' -> {tarea:n, habito:n, ...} para poder explicar de dónde salen
 
-  const sumar = (iso, pts, cat) => {
-    if (!pts) return;
+  const sumar = (iso, pts, fuente) => {
+    if (!pts || !iso) return;
     porDia[iso] = (porDia[iso] || 0) + pts;
-    total += pts;
-    if (cat) porCat[cat] = (porCat[cat] || 0) + pts;
+    const f = porFuente[iso] || (porFuente[iso] = {});
+    f[fuente] = (f[fuente] || 0) + pts;
   };
 
   for (const iso in (DB.tasks || {})) {
-    (DB.tasks[iso] || []).forEach(tk => { if (tk.done) sumar(iso, PUNTOS.tarea * pesoDe(tk), tk.cat); });
+    (DB.tasks[iso] || []).forEach(tk => { if (tk.done) sumar(iso, PUNTOS.tarea * pesoDe(tk), 'tarea'); });
   }
   for (const k in (DB.trafico || {})) {
     const iso = k.slice(1);   // la clave es 'N'+lunes de esa semana
-    (DB.trafico[k] || []).forEach(it => { if (it.done) sumar(iso, PUNTOS.trafico * pesoDe(it), it.cat); });
+    (DB.trafico[k] || []).forEach(it => { if (it.done) sumar(iso, PUNTOS.trafico * pesoDe(it), 'trafico'); });
   }
   for (const iso in (DB.habitLog || {})) {
     const n = (DB.habitLog[iso] || []).length;
-    if (n) { sumar(iso, PUNTOS.habito * n); constancia += PUNTOS.habito * n; }
+    if (n) sumar(iso, PUNTOS.habito * n, 'habito');
   }
   const gym = (DB.trackers || {}).gym || {};
   for (const iso in gym) {
-    if (gym[iso] && gym[iso] !== 'rest') { sumar(iso, PUNTOS.gym); constancia += PUNTOS.gym; }
+    if (gym[iso] && gym[iso] !== 'rest') sumar(iso, PUNTOS.gym, 'gym');
   }
-  // metas: no tienen fecha de cumplimiento, así que cuentan en el total y en su
-  // categoría, pero no empujan la semana (no sabríamos de qué semana son)
+  // metas e hitos: solo los que guardaron la fecha en que se cumplieron
   (DB.goals || []).forEach(g => {
-    const cat = catIdDeMeta(g.category);
-    (g.milestones || []).forEach(m => { if (m.done) { total += PUNTOS.hito; if (cat) porCat[cat] = (porCat[cat] || 0) + PUNTOS.hito; } });
-    if (g.done) { total += PUNTOS.meta; if (cat) porCat[cat] = (porCat[cat] || 0) + PUNTOS.meta; }
+    (g.milestones || []).forEach(m => { if (m.done && m.doneAt) sumar(m.doneAt, PUNTOS.hito, 'hito'); });
+    if (g.done && g.doneAt) sumar(g.doneAt, PUNTOS.meta, 'hito');
   });
 
-  _ptsCache = { porDia, porCat, constancia, total };
+  _ptsCache = { porDia, porFuente };
   return _ptsCache;
 }
 
-// las metas guardan su categoría por nombre ('personal', 'work'...): se busca
-// la categoría de la app que le corresponda, y si no hay, no pasa nada
-function catIdDeMeta(nombre) {
-  if (!nombre) return null;
-  const c = (DB.categories || []).find(x => (x.name || '').toLowerCase() === String(nombre).toLowerCase());
-  return c ? c.id : null;
+// de dónde salieron los puntos de una semana, para poder mostrárselo
+function desgloseSemana(ws) {
+  const pf = recolectar().porFuente;
+  const out = {};
+  for (let i = 0; i < 7; i++) {
+    const f = pf[addDays(ws, i)] || {};
+    for (const k in f) out[k] = (out[k] || 0) + f[k];
+  }
+  return out;
 }
 
 function puntosSemana(ws) {
@@ -181,15 +185,6 @@ function monedas() {
   return Math.max(0, monedasGanadas() - gastado());
 }
 
-// Nivel por XP: rápido al principio, cada vez más lento.
-// L2 a los 25, L3 a los 100, L4 a los 225, L5 a los 400...
-function nivelDe(xp) {
-  const n = Math.floor(Math.sqrt((xp || 0) / 25)) + 1;
-  const ini = 25 * Math.pow(n - 1, 2);
-  const fin = 25 * Math.pow(n, 2);
-  return { nivel: n, en: (xp || 0) - ini, falta: fin - (xp || 0), tramo: fin - ini };
-}
-
 function barraHTML(hecho, total, color) {
   const pct = Math.max(0, Math.min(100, total ? Math.round(hecho * 100 / total) : 0));
   return '<div class="gm-bar"><div class="gm-fill" style="width:' + pct + '%' +
@@ -205,12 +200,22 @@ function gameCardHTML() {
   const listo = pts >= g.meta;
   return '<div class="card gm-card"><div class="section-title">' +
     '<span class="st-left">🎮 ' + t('game.week') + '</span>' +
-    '<button class="btn secondary small gm-open">🪙 ' + monedas() + '</button></div>' +
+    '<span class="gm-reset">' + t('game.resets') + '</span></div>' +
     barraHTML(pts, g.meta) +
     '<div class="gm-line">' +
     (listo ? '🎉 <b>' + t('game.reached') + '</b> ' + t('game.bonus').replace('{n}', PUNTOS.semana)
            : '<b>' + pts + '</b> / ' + g.meta + ' · ' + t('game.togo').replace('{n}', g.meta - pts)) +
-    '</div></div>';
+    '</div>' +
+    '<button class="gm-wallet gm-open">🪙 <b>' + monedas() + '</b> ' + t('game.saved') + ' <span>›</span></button>' +
+    '</div>';
+}
+
+// una línea por fuente: para que se vea que los hábitos sí suman
+function desgloseHTML(ws) {
+  const d = desgloseSemana(ws);
+  const filas = FUENTES.filter(k => d[k]).map(k =>
+    '<div class="gm-src"><span>' + t('game.src.' + k) + '</span><b>' + Math.round(d[k]) + '</b></div>');
+  return filas.length ? '<div class="gm-srcs">' + filas.join('') + '</div>' : '';
 }
 
 function bindGameCard(root) {
@@ -221,7 +226,6 @@ function bindGameCard(root) {
 // ---- panel completo ----
 function openGame() {
   const g = ensureGame();
-  const r = recolectar();
   const ws = weekStartISO(todayISO());
   const pts = puntosSemana(ws);
   const sug = metaSugerida();
@@ -231,6 +235,8 @@ function openGame() {
   // semana
   html += '<div class="gm-block"><div class="gm-head"><b>' + t('game.week') + '</b>' +
     '<span>' + pts + ' / ' + g.meta + '</span></div>' + barraHTML(pts, g.meta) +
+    '<div class="gm-exp">' + t('game.expweek') + '</div>' +
+    desgloseHTML(ws) +
     '<label class="fld">' + t('game.goal') + '</label>' +
     '<div class="add-row"><input type="number" id="gm-meta" min="50" step="25" value="' + g.meta + '">' +
     '<button class="btn secondary small" id="gm-sug">' + t('game.suggest') + '</button></div>' +
@@ -238,26 +244,11 @@ function openGame() {
       t('game.median').replace('{n}', sug.mediana).replace('{s}', sug.semanas) + ' → ' + sug.meta + '</div>' : '') +
     '<div class="muted" style="font-size:12px;margin-top:4px">' + t('game.goalhint') + '</div></div>';
 
-  // niveles
-  const skills = (DB.categories || [])
-    .map(c => ({ name: c.name, color: c.color, xp: r.porCat[c.id] || 0 }))
-    .filter(s => s.xp > 0)
-    .sort((a, b) => b.xp - a.xp);
-  skills.push({ name: t('game.consistency'), color: '#f5c85c', xp: r.constancia });
-  html += '<div class="gm-block"><b>' + t('game.levels') + '</b>';
-  skills.forEach(s => {
-    const n = nivelDe(s.xp);
-    html += '<div class="gm-skill"><div class="gm-head">' +
-      '<span>' + esc(s.name) + ' <span class="gm-lv">' + t('game.lvl') + ' ' + n.nivel + '</span></span>' +
-      '<span class="muted">' + s.xp + ' xp</span></div>' +
-      barraHTML(n.en, n.tramo, s.color) + '</div>';
-  });
-  html += '</div>';
-
   // tienda
   html += '<div class="gm-block"><div class="gm-head"><b>' + t('game.shop') + '</b>' +
     '<span class="gm-coins">🪙 ' + monedas() + '</span></div>' +
-    '<div class="muted" style="font-size:12px;margin-bottom:6px">' + t('game.shophint') + '</div>';
+    '<div class="gm-exp">' + t('game.expcoins').replace('{n}', PUNTOS.semana) + '</div>' +
+    '<div class="muted" style="font-size:12px;margin:6px 0">' + t('game.shophint') + '</div>';
   (g.rewards || []).forEach(rw => {
     const puede = monedas() >= rw.price;
     html += '<div class="task gm-rw" data-rw="' + rw.id + '">' +

@@ -1,5 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
-const APP_VERSION = '37'; // debe coincidir con ?v= de index.html y sw.js
+const APP_VERSION = '38'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----

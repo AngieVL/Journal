@@ -232,11 +232,23 @@ details.det[open] > summary { color: var(--ink); margin-bottom: 2px; }
 .gm-block { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .gm-block:first-of-type { border-top: none; padding-top: 0; }
 .gm-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
-.gm-skill { margin-top: 10px; }
-.gm-lv {
-  background: var(--line); color: var(--ink-soft); border-radius: 999px;
-  font-size: 10px; font-weight: 700; padding: 1px 7px; margin-left: 4px;
+.gm-reset { font-size: 10px; letter-spacing: 1px; color: var(--ink-soft); font-weight: 600; }
+.gm-exp { font-size: 12px; line-height: 1.5; color: var(--ink-soft); margin-top: 8px; }
+/* alcancía: separada de la barra, para que no se confundan los dos números */
+.gm-wallet {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  margin-top: 12px; padding: 9px 12px; cursor: pointer;
+  border: 1px dashed var(--line); border-radius: 10px;
+  background: none; color: var(--ink-soft); font-size: 13px; font-family: inherit;
 }
+.gm-wallet b { color: var(--ink); font-size: 15px; }
+.gm-wallet span:last-child { margin-left: auto; opacity: .6; }
+.gm-srcs { margin-top: 10px; }
+.gm-src {
+  display: flex; justify-content: space-between; font-size: 13px;
+  padding: 5px 0; border-bottom: 1px dashed var(--line);
+}
+.gm-src:last-child { border-bottom: none; }
 .gm-coins { font-weight: 700; }
 .gm-rw .tk-meta { font-weight: 600; }
 .gm-claim { padding: 5px 10px; font-size: 12px; }

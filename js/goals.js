@@ -146,7 +146,9 @@ function openGoalDetail(goalId) {
   const md = document.getElementById('modal-card');
   md.querySelector('#md-x').onclick = () => { closeModal(); render(); };
   md.querySelector('#gd-done').onclick = () => {
-    g.done = !g.done; stamp(g); saveDB(); closeModal(); render();
+    g.done = !g.done;
+    if (g.done) g.doneAt = todayISO(); else delete g.doneAt;
+    stamp(g); saveDB(); closeModal(); render();
     if (g.done) { toast('🎉✨'); celebrate('goal', g.id, g.title); addWin(t('wins.goal') + ' ' + g.title, true); }
   };
   md.querySelector('#gd-del').onclick = () => {
@@ -176,7 +178,10 @@ function openGoalDetail(goalId) {
     if (b.tagName !== 'BUTTON' || !b.classList.contains('tk-check')) return;
     b.onclick = () => {
       const m = g.milestones.find(x => x.id === b.dataset.ms);
-      m.done = !m.done; stamp(g); saveDB(); openGoalDetail(g.id);
+      m.done = !m.done;
+      // guardar CUÁNDO se cumplió: sin fecha los puntos no sabrían a qué semana van
+      if (m.done) m.doneAt = todayISO(); else delete m.doneAt;
+      stamp(g); saveDB(); openGoalDetail(g.id);
     };
   });
   md.querySelectorAll('[data-msdel]').forEach(b => b.onclick = () => {
