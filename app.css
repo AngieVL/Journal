@@ -266,6 +266,17 @@ details.det[open] > summary { color: var(--ink); margin-bottom: 2px; }
 .gm-w[data-w="p"] { background: var(--teal); color: #fff; font-weight: 700; }
 .gm-w[data-w="l"] { opacity: .5; }
 #gm-sug { white-space: nowrap; }
+/* punto de sincronización: discreto cuando todo va bien, visible cuando no */
+.sync-dot {
+  width: 20px; height: 20px; border-radius: 50%; padding: 0;
+  border: none; cursor: pointer; vertical-align: middle;
+  font-size: 11px; font-weight: 700; line-height: 20px;
+  background: var(--line); color: var(--ink-soft);
+}
+.sync-dot.ok, .sync-dot.idle { background: var(--teal); opacity: .45; }
+.sync-dot.sync { background: var(--teal); opacity: 1; color: #fff; }
+.sync-dot.err { background: #e4836f; color: #fff; opacity: 1; }
+.sync-dot.off { display: none; }
 /* tareas que llevan rodando: dato, no regaño */
 .tk-mv {
   background: var(--line); color: var(--ink-soft); border-radius: 999px;

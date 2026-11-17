@@ -1,5 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
-const APP_VERSION = '39'; // debe coincidir con ?v= de index.html y sw.js
+const APP_VERSION = '40'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----
@@ -316,22 +316,60 @@ function openSettings() {
 materializeRecurring();   // siembra las rutinas pendientes del próximo par de meses
 render();
 
+// tocar el punto fuerza una sincronización
+const dot = document.getElementById('sync-dot');
+if (dot) dot.onclick = async () => {
+  lastFgSync = 0;
+  const ok = await fullSync();
+  materializeRecurring(); render();
+  toast(ok ? '🔄 ' + t('sync.state.ok') : '⚠️ ' + t('sync.state.err'));
+};
+if (typeof pintarSync === 'function') pintarSync();
+
 // full sync cycle shortly after opening: pull cloud → merge → push
 setTimeout(async () => {
-  if (typeof fullSync !== 'function') return;
-  const ok = await fullSync();
+  if (typeof arranqueSeguro !== 'function') return;
+  const ok = await arranqueSeguro();
   if (ok) { materializeRecurring(); render(); } // rutinas que llegaron del otro dispositivo
 }, 2000);
 
-// y cada vez que la app vuelve al frente (en Android la PWA se "resume",
-// no se reinicia — sin esto la sincronización nunca corría al reabrirla)
+// --- sincronización continua ---
+// Antes solo corría al abrir y al volver al frente. En el PC una ventana
+// abierta y visible NO dispara visibilitychange aunque pase el día detrás de
+// otra cosa, así que la app nunca se enteraba de lo hecho en el celular.
+// Ahora revisa sola cada minuto: pregunta una marca de tiempo diminuta y solo
+// baja la base cuando de verdad cambió algo.
+async function revisarYPintar() {
+  if (typeof revisarNube !== 'function') return;
+  const antes = JSON.stringify(DB.mt || {});
+  await revisarNube();
+  if (JSON.stringify(DB.mt || {}) !== antes) { materializeRecurring(); render(); }
+}
+
+setInterval(() => {
+  if (document.visibilityState !== 'visible') return;   // en segundo plano no gasta
+  revisarYPintar();
+}, 60000);
+
 let lastFgSync = 0;
-document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState !== 'visible') return;
-  if (Date.now() - lastFgSync < 45000) return; // máx una vez cada 45s
+async function sincronizarAlVolver() {
+  if (Date.now() - lastFgSync < 20000) return;
   lastFgSync = Date.now();
-  materializeRecurring();   // al volver, siembra lo que entró en la ventana
+  materializeRecurring();
   const ok = await fullSync();
   if (ok) materializeRecurring();
   render();
+}
+
+// volver al frente: en Android la PWA se "resume" sin reiniciarse
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') sincronizarAlVolver();
+  else if (typeof pushOnly === 'function' && navigator.onLine) pushOnly();  // salir: dejar lo local a salvo
 });
+// y al recuperar el foco de la ventana: en escritorio esto sí distingue
+// "estaba en otra app" de "la ventana sigue visible"
+window.addEventListener('focus', sincronizarAlVolver);
+window.addEventListener('online', () => { lastFgSync = 0; sincronizarAlVolver(); });
+
+// refrescar el indicador cada medio minuto para que el "hace X min" no mienta
+setInterval(() => { if (typeof pintarSync === 'function') pintarSync(); }, 30000);

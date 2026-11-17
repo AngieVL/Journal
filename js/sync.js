@@ -3,6 +3,20 @@ const SYNC_URL = 'https://script.google.com/macros/s/AKfycbzJKyOaUKRnoEOzJz0enJF
 
 let syncTimer = null, syncing = false;
 
+// Marca de tiempo de la nube tal como la vimos la última vez. Es la que
+// permite saber si esta copia está al día ANTES de subir nada: sin esto, un
+// dispositivo que llevaba días sin abrir pisaba la nube con su copia vieja.
+let lastSeenTs = localStorage.getItem('agenda_seen_ts') || '';
+function setSeenTs(ts) {
+  if (!ts) return;
+  lastSeenTs = ts;
+  localStorage.setItem('agenda_seen_ts', ts);
+}
+
+// estado visible, para que ella pueda confiar en que esto está corriendo
+let syncEstado = 'idle';                   // idle | sync | ok | err | off
+function setEstado(e) { syncEstado = e; pintarSync(); }
+
 function backendUrl() {
   // en desarrollo local no tocar el backend real (evita contaminar el respaldo)
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
@@ -21,7 +35,76 @@ function tomb(key) {
 function scheduleSync() {
   if (!backendUrl()) return;
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(pushOnly, 8000); // subir cambios 8s después del último
+  syncTimer = setTimeout(subirSeguro, 4000); // subir cambios 4s después del último
+}
+
+// ¿qué marca de tiempo tiene la nube ahora? Respuesta diminuta: sirve para
+// preguntar "¿cambió algo?" cada minuto sin bajar la base entera.
+async function serverTs() {
+  const url = backendUrl();
+  if (!url || !navigator.onLine) return null;
+  try {
+    const r = await fetchT(url + '?action=ts&_=' + Date.now(), { cache: 'no-store' }, 12000);
+    const o = await r.json();
+    return o.ok ? (o.ts || '') : null;
+  } catch (e) { return null; }
+}
+
+// ANTES de subir, comprobar que no hay nada nuevo en la nube. Si lo hay,
+// se fusiona primero. Este es el arreglo del "lo que hice en el otro
+// dispositivo se perdió": ya nunca se sube encima de una copia vieja.
+async function subirSeguro() {
+  if (syncing) { scheduleSync(); return false; }   // reintenta en un momento
+  const ts = await serverTs();
+  if (ts === null) { setEstado('err'); return false; }
+  if (ts && ts !== lastSeenTs) return fullSync();  // alguien más escribió
+  return pushOnly();
+}
+
+// Un dispositivo que lleva semanas cerrado tiene una copia que ya no
+// representa nada. Fusionarla puede revivir cosas que ella borró hace rato
+// (las lápidas no se guardan para siempre), así que antes de tocar la nube se
+// pregunta. Es el caso del PC que dejó de usar por meses.
+const DIAS_RANCIO = 7;
+async function arranqueSeguro() {
+  const url = backendUrl();
+  if (!url) return false;
+  const ts = localStorage.getItem('agenda_last_sync');
+  const dias = ts ? (Date.now() - new Date(ts)) / 86400000 : 999;
+  const tieneDatos = Object.keys(DB.tasks || {}).length > 0;
+  if (dias < DIAS_RANCIO || !tieneDatos) return fullSync();   // al día: lo normal
+  const cloudTs = await serverTs();
+  if (!cloudTs) { setEstado('err'); return false; }
+  if (confirm(t('sync.staleconfirm').replace('{n}', Math.round(dias)))) {
+    await traerDeLaNube();            // la nube manda: nada de este equipo sube
+    return true;
+  }
+  return fullSync();                  // ella decidió fusionar igual
+}
+
+// reemplaza lo local por lo de la nube, sin preguntar ni volver a subir
+async function traerDeLaNube() {
+  const url = backendUrl();
+  try {
+    const res = await fetchT(url + '?action=restore&_=' + Date.now(), { cache: 'no-store' });
+    const out = await res.json();
+    if (!out.ok || !out.db) return false;
+    DB = out.db; window.DB = DB;
+    for (const k in DEFAULT_DB) if (DB[k] === undefined) DB[k] = JSON.parse(JSON.stringify(DEFAULT_DB[k]));
+    localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+    if (typeof invalidarPuntos === 'function') invalidarPuntos();
+    const ts = await serverTs();
+    setSeenTs(ts); markSynced(); setEstado('ok');
+    return true;
+  } catch (e) { setEstado('err'); return false; }
+}
+
+// revisión periódica: barata, solo baja la base si de verdad cambió
+async function revisarNube() {
+  if (syncing || !backendUrl() || !navigator.onLine) return;
+  const ts = await serverTs();
+  if (ts === null) { setEstado('err'); return; }
+  if (ts && ts !== lastSeenTs) await fullSync();
 }
 
 // fetch con límite de tiempo: sin esto una petición colgada dejaba
@@ -37,16 +120,20 @@ async function pushOnly() {
   const url = backendUrl();
   if (!url || syncing || !navigator.onLine) return false;
   syncing = true;
+  setEstado('sync');
   let ok = false;
   try {
     const res = await fetchT(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'sync', db: DB })
     });
-    ok = (await res.json()).ok;
-    if (ok) markSynced();
+    const out = await res.json();
+    ok = out.ok;
+    if (ok) { setSeenTs(out.ts); markSynced(); }
   } catch (e) { /* sin internet: reintenta con el próximo cambio */ }
   syncing = false;
+  setEstado(ok ? 'ok' : 'err');
+  if (!ok) scheduleSync();            // sin internet: vuelve a intentarlo
   return ok;
 }
 
@@ -55,6 +142,7 @@ async function fullSync() {
   const url = backendUrl();
   if (!url || syncing || !navigator.onLine) return false;
   syncing = true;
+  setEstado('sync');
   let ok = false;
   try {
     // el parámetro _ evita que el navegador entregue una copia guardada
@@ -63,16 +151,37 @@ async function fullSync() {
     if (out.ok && out.db) {
       mergeRemote(out.db);
       localStorage.setItem(STORE_KEY, JSON.stringify(DB)); // guardar sin re-agendar push
+      if (typeof invalidarPuntos === 'function') invalidarPuntos();
     }
     const res2 = await fetchT(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'sync', db: DB })
     });
-    ok = (await res2.json()).ok;
-    if (ok) markSynced();
+    const out2 = await res2.json();
+    ok = out2.ok;
+    if (ok) { setSeenTs(out2.ts); markSynced(); }
   } catch (e) {}
   syncing = false;
+  setEstado(ok ? 'ok' : 'err');
   return ok;
+}
+
+// ---------- indicador en la barra ----------
+function pintarSync() {
+  const el = document.getElementById('sync-dot');
+  if (!el) return;
+  if (!backendUrl()) { el.className = 'sync-dot off'; el.title = ''; el.textContent = ''; return; }
+  const ts = localStorage.getItem('agenda_last_sync');
+  const min = ts ? Math.floor((Date.now() - new Date(ts)) / 60000) : null;
+  const viejo = min === null || min > 15;
+  let cls = syncEstado, txt = '';
+  if (syncEstado === 'sync') txt = '⟳';
+  else if (syncEstado === 'err' || viejo) { cls = 'err'; txt = '!'; }
+  else txt = '';
+  el.className = 'sync-dot ' + cls;
+  el.textContent = txt;
+  el.title = t('sync.state.' + (cls === 'err' ? 'err' : cls === 'sync' ? 'sync' : 'ok')) +
+    (min !== null ? ' · ' + (min < 1 ? t('sync.justnow') : t('sync.minago').replace('{n}', min)) : '');
 }
 
 function markSynced() {
