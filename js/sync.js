@@ -249,6 +249,20 @@ function mergeRemote(r) {
   // modo día suave: solo importa el de hoy, y manda el cambio más reciente
   if (r.badDay && r.badDay.date && rNewer('badday:' + r.badDay.date)) DB.badDay = r.badDay;
   else if (DB.badDay && r.badDay === null && rNewer('badday:' + DB.badDay.date)) DB.badDay = null;
+  // --- puntos y recompensas: las listas por id; meta y encendido, el más reciente ---
+  if (r.game) {
+    DB.game = DB.game || {};
+    DB.game.rewards = mergeById(DB.game.rewards || [], r.game.rewards, 'rw:');
+    DB.game.claims = mergeById(DB.game.claims || [], r.game.claims, 'clm:');
+    if (r.game.seeded) DB.game.seeded = true;   // no volver a sembrar los ejemplos
+    // si cada dispositivo estrenó el sistema un día distinto, gana el más viejo
+    if (r.game.desde && (!DB.game.desde || r.game.desde < DB.game.desde)) DB.game.desde = r.game.desde;
+    if (rNewer('game')) {
+      if (r.game.meta) DB.game.meta = r.game.meta;
+      if (r.game.on !== undefined) DB.game.on = r.game.on;
+    }
+  }
+
   migrarTrafico();                            // si el otro dispositivo aún manda el tráfico como texto
   DB.celebrated = Object.assign({}, r.celebrated || {}, DB.celebrated || {});
   // conserva la marca más nueva de cada clave

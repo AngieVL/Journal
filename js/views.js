@@ -20,6 +20,9 @@ function renderToday() {
           '<div class="add-row">' + catSelectHTML('cat-sel', UI.filterCat || UI.lastCat) +
           '<input type="time" id="new-task-time" class="time-inp"></div></div>';
 
+  // puntos de la semana: cuánto le falta para su recompensa
+  html += gameCardHTML();
+
   // tráfico de la semana: lo que definió que se trabaja, visible todos los días
   html += traficoCardHTML(weekStartISO(iso), { badge: true, link: true });
 
@@ -417,6 +420,7 @@ function bindToday(root) {
   bindFilterBar(root);
   bindDayEvents(root);
   bindTrafico(root);
+  bindGameCard(root);
   root.querySelectorAll('[data-habit]').forEach(btn => btn.onclick = () => {
     const id = btn.dataset.habit;
     const log = DB.habitLog[iso] || (DB.habitLog[iso] = []);

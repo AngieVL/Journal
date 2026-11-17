@@ -34,6 +34,7 @@ const DEFAULT_DB = {
   bodyFields: [],      // tipos de medida personalizados: {key, name}
   reviews: {},         // 'M-2026-07' | 'Q-2026-3' : {feel,win,improve,next,goals:{goalId:status}}
   ritual: {},          // 'start-2026': {word,vision,letter} / 'end-2026': {rating,best,learned,release,thanks}
+  game: {},            // puntos y recompensas: {on, meta, rewards:[{id,title,price}], claims:[...]}
   celebrated: {},      // logros ya celebrados por WhatsApp
   tombstones: [],      // claves de cosas borradas (para que la fusión multi-dispositivo no las resucite)
   mt: {}               // última modificación de datos sin id (trackers, hábitos del día, notas...)
@@ -223,6 +224,7 @@ function seedGoals2026() {
 
 function saveDB() {
   localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+  if (typeof invalidarPuntos === 'function') invalidarPuntos();   // los puntos se derivan de la base
   if (typeof scheduleSync === 'function') scheduleSync();
 }
 
