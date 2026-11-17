@@ -99,12 +99,14 @@ async function traerDeLaNube() {
   } catch (e) { setEstado('err'); return false; }
 }
 
-// revisión periódica: barata, solo baja la base si de verdad cambió
+// Revisión periódica: barata, solo baja la base si de verdad cambió.
+// Devuelve true si trajo algo, para que quien llame vuelva a pintar.
 async function revisarNube() {
-  if (syncing || !backendUrl() || !navigator.onLine) return;
+  if (syncing || !backendUrl() || !navigator.onLine) return false;
   const ts = await serverTs();
-  if (ts === null) { setEstado('err'); return; }
-  if (ts && ts !== lastSeenTs) await fullSync();
+  if (ts === null) { setEstado('err'); return false; }
+  if (ts && ts !== lastSeenTs) { await fullSync(); return true; }
+  return false;
 }
 
 // fetch con límite de tiempo: sin esto una petición colgada dejaba

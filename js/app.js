@@ -1,5 +1,5 @@
 // ===== App shell: navigation, modal, settings =====
-const APP_VERSION = '40'; // debe coincidir con ?v= de index.html y sw.js
+const APP_VERSION = '41'; // debe coincidir con ?v= de index.html y sw.js
 loadDB();
 
 // ---- theme & accent ----
@@ -329,8 +329,9 @@ if (typeof pintarSync === 'function') pintarSync();
 // full sync cycle shortly after opening: pull cloud → merge → push
 setTimeout(async () => {
   if (typeof arranqueSeguro !== 'function') return;
-  const ok = await arranqueSeguro();
-  if (ok) { materializeRecurring(); render(); } // rutinas que llegaron del otro dispositivo
+  await arranqueSeguro();
+  materializeRecurring();   // rutinas que llegaron del otro dispositivo
+  render();                 // siempre repintar: la fusión pudo cambiar cosas
 }, 2000);
 
 // --- sincronización continua ---
@@ -339,11 +340,13 @@ setTimeout(async () => {
 // otra cosa, así que la app nunca se enteraba de lo hecho en el celular.
 // Ahora revisa sola cada minuto: pregunta una marca de tiempo diminuta y solo
 // baja la base cuando de verdad cambió algo.
+// Ojo: DB.mt solo guarda marcas de lo que NO tiene id (trackers, hábitos del
+// día, notas). El tachado de una tarea vive en la tarea misma, así que mirar
+// DB.mt para decidir si repintar dejaba la pantalla vieja aunque los datos ya
+// hubieran llegado: eso era el "en el PC sigue tachado".
 async function revisarYPintar() {
   if (typeof revisarNube !== 'function') return;
-  const antes = JSON.stringify(DB.mt || {});
-  await revisarNube();
-  if (JSON.stringify(DB.mt || {}) !== antes) { materializeRecurring(); render(); }
+  if (await revisarNube()) { materializeRecurring(); render(); }
 }
 
 setInterval(() => {
