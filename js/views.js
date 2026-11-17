@@ -228,6 +228,8 @@ function traficoRowHTML(ws, it, num, primero, ultimo) {
          : '<span class="tf-num tf-num-done">✓</span>') +
     '<span class="tk-main tf-main"><span class="tk-title"' +
     (color && !it.done ? ' style="color:' + color + ';font-weight:600"' : '') + '>' + esc(it.title) + '</span></span>' +
+    '<button class="gm-w" data-w="' + (it.w || 'n') + '" title="' + esc(t('peso.' + (it.w || 'n')) + ' · ' + (PUNTOS.trafico * pesoDe(it)) + ' pts') + '">' +
+    PESO_ICONO[it.w || 'n'] + '</button>' +
     (it.done ? '' :
       '<button class="tf-mv tf-up' + (primero ? ' tf-off' : '') + '" title="' + esc(t('trafico.up')) + '">▲</button>' +
       '<button class="tf-mv tf-down' + (ultimo ? ' tf-off' : '') + '" title="' + esc(t('trafico.down')) + '">▼</button>') +
@@ -313,6 +315,13 @@ function bindTrafico(root) {
     const up = row.querySelector('.tf-up'), dn = row.querySelector('.tf-down');
     if (up) up.onclick = () => traficoMover(ws, id, -1);
     if (dn) dn.onclick = () => traficoMover(ws, id, 1);
+    const w = row.querySelector('.gm-w');
+    if (w) w.onclick = () => {
+      it.w = pesoSiguiente(it.w);
+      stamp(it); saveDB();
+      toast(t('peso.' + it.w) + ' · ' + Math.round(PUNTOS.trafico * pesoDe(it)) + ' pts');
+      render();
+    };
   });
 
   const go = root.querySelector('.tf-go');
@@ -480,6 +489,7 @@ function openTaskModal(iso, id) {
   let html = '<div class="modal-title">✍️ ' + t('task.edit') + '<button class="icon-btn" id="md-x">✕</button></div>' +
     '<label class="fld">' + t('task.title') + '</label><input type="text" id="tk-title" value="' + esc(tk.title) + '">' +
     '<label class="fld">🎨 ' + t('cat.category') + '</label>' + catSelectHTML('cat-sel-edit', tk.cat) +
+    '<label class="fld">⚖️ ' + t('peso.label') + '</label>' + pesoSelectHTML('tk-peso', tk.w, PUNTOS.tarea) +
     '<label class="fld">🕐 ' + t('task.time') + '</label><input type="time" id="tk-time" value="' + (tk.time || '') + '">' +
     '<label class="fld">📅 ' + t('task.date') + '</label><input type="date" id="tk-date" value="' + iso + '">' +
     detailsHTML('tk-place', 'tk-notes', tk) +
@@ -512,6 +522,8 @@ function openTaskModal(iso, id) {
     tk.title = title;
     const cat = md.querySelector('.cat-sel-edit').value;
     if (cat) tk.cat = cat; else delete tk.cat;
+    const pw = md.querySelector('#tk-peso').value;
+    if (pw && pw !== 'n') tk.w = pw; else delete tk.w;
     const tm = md.querySelector('#tk-time').value;
     if (tm) tk.time = tm; else delete tk.time;
     const pl = md.querySelector('#tk-place').value.trim();

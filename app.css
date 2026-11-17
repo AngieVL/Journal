@@ -245,6 +245,15 @@ details.det[open] > summary { color: var(--ink); margin-bottom: 2px; }
 .gm-claimed { font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .gm-claimed:last-child { border-bottom: none; }
 .gm-off { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+/* peso: un toque lo cambia de ligera a normal a pesada */
+.gm-w {
+  border: none; background: var(--line); cursor: pointer;
+  color: var(--ink-soft); font-size: 11px; line-height: 1; letter-spacing: 1px;
+  min-width: 30px; padding: 6px 4px; border-radius: 8px;
+}
+.gm-w[data-w="p"] { background: var(--teal); color: #fff; font-weight: 700; }
+.gm-w[data-w="l"] { opacity: .5; }
+#gm-sug { white-space: nowrap; }
 
 .inbox-list { max-height: 260px; overflow-y: auto; }
 .inbox-row .inbox-title { cursor: pointer; }

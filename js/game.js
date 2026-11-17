@@ -11,7 +11,7 @@
 
 const PUNTOS = {
   tarea: 10,      // una tarea tachada
-  trafico: 25,    // una prioridad de la semana cumplida (vale más: la eligió ella)
+  trafico: 50,    // una prioridad de la semana cumplida (vale más: la eligió ella)
   habito: 5,      // un hábito marcado en el día
   gym: 20,        // un entreno registrado (descanso no cuenta... y no resta)
   hito: 50,       // un hito de meta cumplido
@@ -19,7 +19,22 @@ const PUNTOS = {
   semana: 100     // bono por llegar a la meta semanal de puntos
 };
 
-const GAME_DEFAULTS = { on: true, meta: 300, rewards: [], claims: [], desde: null };
+// Peso: lavar el casco y terminar un proyecto no pueden valer lo mismo.
+// Se marca donde importa y se deja en normal donde da igual.
+const PESOS = { l: 0.5, n: 1, p: 3 };
+const PESO_ORDEN = ['l', 'n', 'p'];
+const PESO_ICONO = { l: '•', n: '••', p: '•••' };
+function pesoDe(o) { return PESOS[(o && o.w) || 'n'] || 1; }
+function pesoSiguiente(w) { return PESO_ORDEN[(PESO_ORDEN.indexOf(w || 'n') + 1) % 3]; }
+
+function pesoSelectHTML(id, actual, base) {
+  return '<select id="' + id + '">' + PESO_ORDEN.map(w =>
+    '<option value="' + w + '"' + ((actual || 'n') === w ? ' selected' : '') + '>' +
+    PESO_ICONO[w] + '  ' + t('peso.' + w) + ' · ' + Math.round(base * PESOS[w]) + ' pts</option>').join('') +
+    '</select>';
+}
+
+const GAME_DEFAULTS = { on: true, meta: 500, rewards: [], claims: [], desde: null };
 
 // Recompensas de arranque: son ejemplos para que edite, no un plan.
 function seedRewards() {
@@ -42,7 +57,31 @@ function ensureGame() {
   // completa (el tráfico suma en el lunes de su semana) y no empieza a medias.
   if (!g.desde) { g.desde = weekStartISO(todayISO()); }
   if (!g.seeded) { g.rewards = seedRewards(); g.seeded = true; saveDB(); }
+  // La primera meta (300) salió a ojo y le quedó corta: una semana suya llegaba
+  // a eso sin cerrar ninguna prioridad. Se sube una vez; de ahí en adelante la
+  // cambia ella, con el botón de sugerencia que mira su propio historial.
+  if (!g.calibrado) { if (g.meta <= 300) g.meta = 500; g.calibrado = true; saveDB(); }
   return g;
+}
+
+// Mediana de sus últimas semanas cerradas, para sugerirle una meta con datos
+// suyos en vez de un número inventado.
+function metaSugerida() {
+  const g = DB.game || {};
+  const p = recolectar().porDia;
+  const hoyWs = weekStartISO(todayISO());
+  const desdeWs = weekStartISO(g.desde || todayISO());
+  const porSemana = {};
+  for (const iso in p) {
+    const ws = weekStartISO(iso);
+    if (ws >= hoyWs) continue;                 // la semana en curso no cuenta: está a medias
+    if (ws < desdeWs) continue;                // antes del sistema no había tráfico ni pesos: no compara
+    porSemana[ws] = (porSemana[ws] || 0) + p[iso];
+  }
+  const v = Object.keys(porSemana).sort().slice(-8).map(k => porSemana[k]).sort((a, b) => a - b);
+  if (v.length < 3) return null;               // sin historial suficiente no se inventa nada
+  const med = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  return { mediana: Math.round(med), meta: Math.max(100, Math.round(med * 1.3 / 25) * 25), semanas: v.length };
 }
 
 // ---- recolección (cache: se recalcula cuando cambia la base) ----
@@ -64,11 +103,11 @@ function recolectar() {
   };
 
   for (const iso in (DB.tasks || {})) {
-    (DB.tasks[iso] || []).forEach(tk => { if (tk.done) sumar(iso, PUNTOS.tarea, tk.cat); });
+    (DB.tasks[iso] || []).forEach(tk => { if (tk.done) sumar(iso, PUNTOS.tarea * pesoDe(tk), tk.cat); });
   }
   for (const k in (DB.trafico || {})) {
     const iso = k.slice(1);   // la clave es 'N'+lunes de esa semana
-    (DB.trafico[k] || []).forEach(it => { if (it.done) sumar(iso, PUNTOS.trafico, it.cat); });
+    (DB.trafico[k] || []).forEach(it => { if (it.done) sumar(iso, PUNTOS.trafico * pesoDe(it), it.cat); });
   }
   for (const iso in (DB.habitLog || {})) {
     const n = (DB.habitLog[iso] || []).length;
@@ -185,6 +224,7 @@ function openGame() {
   const r = recolectar();
   const ws = weekStartISO(todayISO());
   const pts = puntosSemana(ws);
+  const sug = metaSugerida();
 
   let html = '<div class="modal-title">🎮 ' + t('game.title') + '<button class="icon-btn" id="md-x">✕</button></div>';
 
@@ -192,7 +232,10 @@ function openGame() {
   html += '<div class="gm-block"><div class="gm-head"><b>' + t('game.week') + '</b>' +
     '<span>' + pts + ' / ' + g.meta + '</span></div>' + barraHTML(pts, g.meta) +
     '<label class="fld">' + t('game.goal') + '</label>' +
-    '<input type="number" id="gm-meta" min="50" step="50" value="' + g.meta + '">' +
+    '<div class="add-row"><input type="number" id="gm-meta" min="50" step="25" value="' + g.meta + '">' +
+    '<button class="btn secondary small" id="gm-sug">' + t('game.suggest') + '</button></div>' +
+    (sug ? '<div class="muted" style="font-size:12px;margin-top:4px">' +
+      t('game.median').replace('{n}', sug.mediana).replace('{s}', sug.semanas) + ' → ' + sug.meta + '</div>' : '') +
     '<div class="muted" style="font-size:12px;margin-top:4px">' + t('game.goalhint') + '</div></div>';
 
   // niveles
@@ -246,6 +289,10 @@ function openGame() {
     g.meta = v; stampKey('game'); saveDB(); openGame();
   };
   md.querySelector('#gm-on').onchange = e => { g.on = e.target.checked; stampKey('game'); saveDB(); };
+  md.querySelector('#gm-sug').onclick = () => {
+    if (!sug) { toast(t('game.nohist')); return; }
+    g.meta = sug.meta; stampKey('game'); saveDB(); openGame();
+  };
   const add = () => {
     const ti = md.querySelector('#gm-new'), pi = md.querySelector('#gm-new-p');
     const title = ti.value.trim(), price = Number(pi.value) || 0;
