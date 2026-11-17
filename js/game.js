@@ -235,20 +235,18 @@ function openGame() {
   // semana
   html += '<div class="gm-block"><div class="gm-head"><b>' + t('game.week') + '</b>' +
     '<span>' + pts + ' / ' + g.meta + '</span></div>' + barraHTML(pts, g.meta) +
-    '<div class="gm-exp">' + t('game.expweek') + '</div>' +
     desgloseHTML(ws) +
     '<label class="fld">' + t('game.goal') + '</label>' +
     '<div class="add-row"><input type="number" id="gm-meta" min="50" step="25" value="' + g.meta + '">' +
     '<button class="btn secondary small" id="gm-sug">' + t('game.suggest') + '</button></div>' +
-    (sug ? '<div class="muted" style="font-size:12px;margin-top:4px">' +
-      t('game.median').replace('{n}', sug.mediana).replace('{s}', sug.semanas) + ' → ' + sug.meta + '</div>' : '') +
-    '<div class="muted" style="font-size:12px;margin-top:4px">' + t('game.goalhint') + '</div></div>';
+    (sug ? '<div class="gm-exp">' + t('game.median').replace('{n}', sug.mediana).replace('{s}', sug.semanas) +
+      ' → ' + sug.meta + '</div>' : '') +
+    '<div class="gm-exp">' + t('game.goalhint') + '</div></div>';
 
   // tienda
   html += '<div class="gm-block"><div class="gm-head"><b>' + t('game.shop') + '</b>' +
     '<span class="gm-coins">🪙 ' + monedas() + '</span></div>' +
-    '<div class="gm-exp">' + t('game.expcoins').replace('{n}', PUNTOS.semana) + '</div>' +
-    '<div class="muted" style="font-size:12px;margin:6px 0">' + t('game.shophint') + '</div>';
+    '<div class="gm-exp">' + t('game.expcoins').replace('{n}', PUNTOS.semana) + '</div>';
   (g.rewards || []).forEach(rw => {
     const puede = monedas() >= rw.price;
     html += '<div class="task gm-rw" data-rw="' + rw.id + '">' +
