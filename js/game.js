@@ -10,7 +10,10 @@
 // y los canjes.
 
 const PUNTOS = {
-  tarea: 10,      // una tarea tachada
+  // Una tarea vale poco a propósito: ella parte los proyectos en pasos muy
+  // chiquitos (un background = una tarea), así que el volumen de tareas mide
+  // cuánto trocea, no cuánto avanza. Lo que mueve la semana es el tráfico.
+  tarea: 5,       // una tarea tachada
   trafico: 50,    // una prioridad de la semana cumplida (vale más: la eligió ella)
   habito: 5,      // un hábito marcado en el día
   gym: 20,        // un entreno registrado (descanso no cuenta... y no resta)
@@ -98,7 +101,8 @@ function recolectar() {
   const porDia = {};        // 'YYYY-MM-DD' -> puntos de ese día
   const porFuente = {};     // 'YYYY-MM-DD' -> {tarea:n, habito:n, ...} para poder explicar de dónde salen
 
-  const sumar = (iso, pts, fuente) => {
+  const sumar = (iso, bruto, fuente) => {
+    const pts = Math.round(bruto);          // nada de medios puntos por ahí
     if (!pts || !iso) return;
     porDia[iso] = (porDia[iso] || 0) + pts;
     const f = porFuente[iso] || (porFuente[iso] = {});
